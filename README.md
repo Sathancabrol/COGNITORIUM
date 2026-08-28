@@ -2,18 +2,35 @@
 
 Outils de visualisation cognitive — cognitive tool visualization.
 
-## Learning Engine
+## Learning Engine — PoC v0.1
 
-Le **Cognitorium Learning Engine (CLE)** est le module d'apprentissage adaptatif du projet. Il enseigne par résolution progressive de problèmes : l'apprenant part d'une situation concrète, agit, observe les conséquences, rencontre de nouvelles contraintes et découvre progressivement les concepts nécessaires.
+Le premier Proof of Concept teste une hypothèse pédagogique : faire comprendre un système complexe par résolution progressive de problèmes, avec feedback explicatif et construction dynamique d'un graphe conceptuel.
 
-### Prototype
+### PoC « Comprendre l'argent »
 
-Ouvrir `learning/index.html` dans un navigateur pour tester le scénario « Construis un turboréacteur » et observer la mise à jour du Skill Graph.
+Parcours : **troc → double coïncidence des besoins → monnaie → prix → épargne → crédit → intérêt → inflation → investissement**.
 
-### Architecture
+Chaque niveau contient :
+- une situation concrète ;
+- un problème à résoudre ;
+- plusieurs choix ;
+- une conséquence explicative ;
+- les concepts associés ;
+- les liens avec les concepts précédents et suivants ;
+- une mise à jour du Skill / Concept Graph.
 
-Voir [`learning/ARCHITECTURE.md`](learning/ARCHITECTURE.md).
+Le parcours se termine par une question de transfert et conserve localement les événements de session.
 
-### Boucle pédagogique
+### Lancer
 
-`Situation → Problème → Action → Conséquence → Découverte → Formalisation → Transfert → Évaluation → Skill Graph Update`
+Depuis la racine du dépôt :
+
+```bash
+python -m http.server 8000
+```
+
+Puis ouvrir `http://localhost:8000/learning/` et choisir le PoC.
+
+## Architecture
+
+Voir `learning/ARCHITECTURE.md` pour le modèle CLE : Scenario Engine, Challenge Engine, Cognitive Engine, Skill Graph Engine et Adaptive Learning Loop.
