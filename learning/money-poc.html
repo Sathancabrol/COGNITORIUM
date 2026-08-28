@@ -8,13 +8,81 @@
 </head>
 <body>
   <main class="app">
-    <header><div><small>COGNITORIUM LEARNING ENGINE</small><h1>Comprendre l'argent en le construisant</h1></div><div id="progress"></div></header>
+    <header>
+      <div>
+        <small>COGNITORIUM LEARNING ENGINE</small>
+        <h1>Comprendre l'argent en le construisant</h1>
+        <p class="subtitle">Un parcours où chaque décision construit progressivement ton modèle mental.</p>
+      </div>
+      <div id="progress" class="progress"></div>
+    </header>
+
     <section class="layout">
-      <article class="card scenario"><div class="eyebrow" id="level"></div><h2 id="title"></h2><p id="situation"></p><div class="problem" id="problem"></div><div id="choices" class="choices"></div></article>
-      <aside class="card graph"><h3>Skill / Concept Graph</h3><div id="graph"></div><div class="legend"><span class="new"></span> découvert <span class="known"></span> déjà relié</div></aside>
+      <article class="card scenario">
+        <div class="eyebrow" id="level"></div>
+        <h2 id="title"></h2>
+        <p id="situation"></p>
+        <div class="problem" id="problem"></div>
+        <div id="choices" class="choices"></div>
+      </article>
+
+      <aside class="card graph">
+        <div class="graph-head">
+          <div>
+            <h3>Concept Graph</h3>
+            <span id="graphCount" class="graph-count">0 concepts</span>
+          </div>
+          <span class="graph-status">construction en direct</span>
+        </div>
+        <div id="graph" class="graph-canvas"></div>
+        <div class="legend"><span class="new"></span> nouveau <span class="known"></span> déjà construit</div>
+      </aside>
     </section>
-    <section class="card feedback" id="feedback" hidden><div class="eyebrow">FEEDBACK</div><h2 id="feedbackTitle"></h2><p id="feedbackText"></p><div class="concepts"><strong>Concepts mobilisés</strong><div id="conceptList"></div></div><div class="links"><div><strong>Ce que cela relie</strong><span id="previous"></span></div><div><strong>Ce que cela prépare</strong><span id="next"></span></div></div><button id="continue">Continuer →</button></section>
-    <section class="card assessment" id="assessment" hidden><div class="eyebrow">TRANSFERT</div><h2>Explique le système</h2><p>Pourquoi une hausse générale des prix peut-elle réduire ton pouvoir d'achat ? Réponds avec tes propres mots.</p><textarea id="answer" placeholder="Ton explication..."></textarea><button id="finish">Terminer le PoC</button><div id="result"></div></section>
+
+    <section class="card feedback" id="feedback" hidden>
+      <div class="feedback-top">
+        <div class="eyebrow">FEEDBACK</div>
+        <div id="comprehension" class="comprehension" aria-live="polite">
+          <span class="comprehension-ring"><span id="comprehensionValue">0</span></span>
+          <span><strong>Niveau de compréhension</strong><small id="comprehensionLabel">En construction</small></span>
+        </div>
+      </div>
+
+      <div class="answer-reveal" id="answerReveal"></div>
+
+      <div class="feedback-body">
+        <h2 id="feedbackTitle"></h2>
+        <p id="feedbackText"></p>
+      </div>
+
+      <div class="concepts">
+        <strong>Concepts associés</strong>
+        <div id="conceptList"></div>
+      </div>
+
+      <div class="connection-stage" aria-label="Connexions conceptuelles">
+        <div class="connection-pop previous-pop" id="previousPop">
+          <span class="pop-label">Ce que cela relie</span>
+          <span id="previous"></span>
+        </div>
+        <div class="connection-line"></div>
+        <div class="connection-pop next-pop" id="nextPop">
+          <span class="pop-label">Ce que cela prépare</span>
+          <span id="next"></span>
+        </div>
+      </div>
+
+      <button id="continue" class="continue">Continuer <span>→</span></button>
+    </section>
+
+    <section class="card assessment" id="assessment" hidden>
+      <div class="eyebrow">TRANSFERT</div>
+      <h2>Explique le système</h2>
+      <p>Pourquoi une hausse générale des prix peut-elle réduire ton pouvoir d'achat ? Réponds avec tes propres mots.</p>
+      <textarea id="answer" placeholder="Ton explication..."></textarea>
+      <button id="finish">Terminer le PoC</button>
+      <div id="result" class="result"></div>
+    </section>
   </main>
   <script src="money-poc.js"></script>
 </body>
