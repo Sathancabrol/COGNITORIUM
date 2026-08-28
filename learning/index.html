@@ -1,34 +1,14 @@
 <!doctype html>
 <html lang="fr">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Cognitorium Learning Engine</title>
-  <link rel="stylesheet" href="./styles.css" />
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Cognitorium Learning Engine</title><link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <main class="app">
-    <header class="topbar">
-      <div><span class="eyebrow">COGNITORIUM</span><h1>Learning Engine</h1></div>
-      <div class="progress"><span id="stepLabel">Étape 1 / 6</span><div class="bar"><i id="progressBar"></i></div></div>
-    </header>
-
-    <section class="learning-grid">
-      <article class="scene card">
-        <div class="scene-meta"><span id="stageType">SITUATION</span><span id="conceptTag">—</span></div>
-        <h2 id="title"></h2><p id="body"></p>
-        <div id="choices" class="choices"></div>
-        <div id="feedback" class="feedback hidden"></div>
-        <button id="next" class="primary hidden">Continuer</button>
-      </article>
-
-      <aside class="graph card">
-        <div class="card-head"><h3>Skill Graph</h3><span id="mastery">0%</span></div>
-        <div id="graph" class="nodes"></div>
-        <div class="legend"><span class="dot discovered"></span> découvert <span class="dot active"></span> en cours <span class="dot locked"></span> à découvrir</div>
-      </aside>
-    </section>
+    <h1>Cognitorium Learning Engine</h1>
+    <p>Proof of Concept — apprentissage par résolution progressive de problèmes.</p>
+    <p><a href="money-poc.html">Lancer le PoC « Comprendre l'argent » →</a></p>
   </main>
-  <script type="module" src="./learning-engine.js"></script>
 </body>
 </html>
