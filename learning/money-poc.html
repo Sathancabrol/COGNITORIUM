@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Cognitorium — PoC Argent</title>
+  <link rel="stylesheet" href="money-poc.css">
+</head>
+<body>
+  <main class="app">
+    <header><div><small>COGNITORIUM LEARNING ENGINE</small><h1>Comprendre l'argent en le construisant</h1></div><div id="progress"></div></header>
+    <section class="layout">
+      <article class="card scenario"><div class="eyebrow" id="level"></div><h2 id="title"></h2><p id="situation"></p><div class="problem" id="problem"></div><div id="choices" class="choices"></div></article>
+      <aside class="card graph"><h3>Skill / Concept Graph</h3><div id="graph"></div><div class="legend"><span class="new"></span> découvert <span class="known"></span> déjà relié</div></aside>
+    </section>
+    <section class="card feedback" id="feedback" hidden><div class="eyebrow">FEEDBACK</div><h2 id="feedbackTitle"></h2><p id="feedbackText"></p><div class="concepts"><strong>Concepts mobilisés</strong><div id="conceptList"></div></div><div class="links"><div><strong>Ce que cela relie</strong><span id="previous"></span></div><div><strong>Ce que cela prépare</strong><span id="next"></span></div></div><button id="continue">Continuer →</button></section>
+    <section class="card assessment" id="assessment" hidden><div class="eyebrow">TRANSFERT</div><h2>Explique le système</h2><p>Pourquoi une hausse générale des prix peut-elle réduire ton pouvoir d'achat ? Réponds avec tes propres mots.</p><textarea id="answer" placeholder="Ton explication..."></textarea><button id="finish">Terminer le PoC</button><div id="result"></div></section>
+  </main>
+  <script src="money-poc.js"></script>
+</body>
+</html>
