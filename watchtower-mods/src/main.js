@@ -25,6 +25,8 @@ import { initCompassTape } from './compassTape.js';
 import { initMobiDock } from './mobiDock.js';
 import { initChatConsole } from './chatConsole.js';
 import { initNearbyPlaces } from './nearbyPlaces.js';
+import { initFicheLieu } from './ficheLieu.js';
+import { initVisualFilters } from './visualFilters.js';
 import { initPaywallGate } from './paywallGate.js';
 import { MapStackController } from './mapStackController.js';
 import { initAnnotations } from './annotations/index.js';
@@ -370,10 +372,12 @@ async function init() {
         affichage: window.__godsEyeView.watchtower?.displayOptions,
       });
       const autour = initNearbyPlaces(viewer);
+      const filtres = initVisualFilters();
       window.__godsEyeView.dock = initMobiDock({
         panneauxAncres: [
           { id: 'chat', icone: '💬', libelle: 'CHAT', titre: 'CHAT — CONSOLE DE COMMANDES', element: chat.element, cote: 'gauche', surOuverture: chat.focus },
           { id: 'autour', icone: '📍', libelle: 'AUTOUR', titre: 'AUTOUR DE MOI', element: autour.element, cote: 'droite' },
+          { id: 'filtres', icone: '🎨', libelle: 'FILTRES', titre: 'FILTRES DE VUE', element: filtres.element, cote: 'droite' },
         ],
         panneauxExistants: [
           { icone: '🗼', libelle: 'FRANCE', cibleId: 'wt-panel' },
@@ -384,6 +388,11 @@ async function init() {
         ],
       });
     } catch (e) { console.error('[watchtower] dock:', e); }
+    // FICHE LIEU : clic gauche sur la carte → dossier du point (Wikipédia,
+    // photo, adresse, onglets politique/économie/citoyen, visite drone 3D).
+    try {
+      window.__godsEyeView.fiche = initFicheLieu(viewer);
+    } catch (e) { console.error('[watchtower] fiche lieu:', e); }
     // Mode gratuit : un clic sur une option payante ouvre le dialogue
     // d'activation (explication + OBTENIR MA CLÉ + collage de la clé).
     try {
