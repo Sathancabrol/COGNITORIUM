@@ -1,6 +1,6 @@
 import * as Cesium from 'cesium';
 import { StyleManager } from './ui.js';
-import { flyToAustin } from './camera.js';
+// flyToAustin retiré — WATCHTOWER démarre en vue orbitale (espace).
 import { DataLayerManager } from './data/manager.js';
 import flightsLayer from './data/flights.js';
 import militaryFlightsLayer from './data/militaryFlights.js';
@@ -21,6 +21,9 @@ import { SceneDirector } from './scenes/director.js';
 import { initGevVoiceCommands } from './voice/gevRealtime.js';
 import { initFreeVoiceCommands } from './voice/freeVoice.js';
 import { initWatchtowerExtras } from './watchtowerExtras.js';
+import { initCompassTape } from './compassTape.js';
+import { initCleanUi } from './cleanUi.js';
+import { initPaywallGate } from './paywallGate.js';
 import { MapStackController } from './mapStackController.js';
 import { initAnnotations } from './annotations/index.js';
 import { initLogoGaze } from './logoGaze.js';
@@ -204,10 +207,18 @@ async function init() {
     const weatherEffects = null;
     const cockpitCloudEffects = initCockpitCloudEffects(viewer);
 
-    // If no share link state, do default fly-to Austin
+    // If no share link state, start on the ORBITAL view — WATCHTOWER opens in
+    // space (whole Earth), centred on the saved home (or France by default).
     if (!styleManager.hasShareState) {
-      loaderStatus.textContent = 'Flying to Austin, TX...';
-      flyToAustin(viewer);
+      loaderStatus.textContent = 'Vue orbitale…';
+      let lon = 3.75; let lat = 43.44; // Frontignan / sud de la France par défaut
+      try {
+        const home = JSON.parse(window.localStorage.getItem('watchtower.domicile.v1') || 'null');
+        if (Number.isFinite(home?.lon) && Number.isFinite(home?.lat)) { lon = home.lon; lat = home.lat; }
+      } catch { /* défaut France */ }
+      viewer.camera.setView({
+        destination: Cesium.Cartesian3.fromDegrees(lon, lat, 21_000_000),
+      });
     } else {
       loaderStatus.textContent = 'Restoring shared view...';
     }
@@ -345,6 +356,13 @@ async function init() {
     // WATCHTOWER — panneau français : INFO VUE exacte, météo Open-Meteo,
     // domicile, marque-pages, import KML/GeoJSON/GPX. Tout sans clé.
     window.__godsEyeView.watchtower = initWatchtowerExtras({ viewer });
+    // Boussole FPS (ruban de cap gradué, clic = recadrage nord).
+    window.__godsEyeView.boussole = initCompassTape(viewer);
+    // UI épurée : les panneaux secondaires deviennent des icônes à développer.
+    window.__godsEyeView.uiEpuree = initCleanUi();
+    // Mode gratuit : un clic sur une option payante ouvre le dialogue
+    // d'activation (explication + OBTENIR MA CLÉ + collage de la clé).
+    initPaywallGate({ mode: gate.mode });
 
   } catch (error) {
     console.error("God's Eye View initialization failed:", error);

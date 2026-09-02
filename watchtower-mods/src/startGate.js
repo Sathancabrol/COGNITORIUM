@@ -219,6 +219,24 @@ const GATE_CSS = `
  */
 export function openStartGate() {
   return new Promise((resolve) => {
+    // Redémarrage automatique en MODE PAYANT : posé par le dialogue « option
+    // payante » (paywallGate) après la saisie d'une clé. ?gate=1 dans l'URL
+    // force le retour à l'écran de choix.
+    try {
+      const forceGate = /(?:\?|&|#)gate=1/.test(window.location.search + window.location.hash);
+      if (!forceGate && window.localStorage.getItem('watchtower.autopaid') === '1') {
+        const stored = readStoredKeys();
+        const keys = {};
+        for (const [k, v] of Object.entries(stored)) {
+          if (isPlausibleKey(v)) keys[k] = String(v).trim();
+        }
+        if (Object.keys(keys).length > 0) {
+          resolve({ mode: 'paid', keys });
+          return;
+        }
+      }
+    } catch { /* stockage indisponible — gate normal */ }
+
     const style = document.createElement('style');
     style.id = 'start-gate-style';
     style.textContent = GATE_CSS;
@@ -270,6 +288,7 @@ export function openStartGate() {
         </div>
       `;
       gate.querySelector('[data-mode="free"]').addEventListener('click', () => {
+        try { window.localStorage.removeItem('watchtower.autopaid'); } catch { /* ok */ }
         finish('free', {});
       });
       gate.querySelector('[data-mode="paid"]').addEventListener('click', renderKeyEntry);
