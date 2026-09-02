@@ -29,6 +29,7 @@ import { initFicheLieu } from './ficheLieu.js';
 import { initVisualFilters } from './visualFilters.js';
 import { initOsmBuildings3D } from './osmBuildings3D.js';
 import { initChantier } from './chantier.js';
+import { initFlightMode } from './flightMode.js';
 import { initIntelTwin } from './intelTwin.js';
 import { initFrenchHud } from './frenchHud.js';
 import { initPaywallGate } from './paywallGate.js';
@@ -405,7 +406,8 @@ async function init() {
           { id: 'autour', icone: '📍', libelle: 'AUTOUR', titre: 'AUTOUR DE MOI', element: autour.element, cote: 'droite' },
           { id: 'filtres', icone: '🎨', libelle: 'FILTRES', titre: 'FILTRES DE VUE', element: filtres.element, cote: 'droite' },
           { id: 'bati', icone: '🏙', libelle: 'BÂTI 3D', titre: 'BÂTIMENTS 3D (OSM, GRATUIT)', element: bati.element, cote: 'gauche' },
-          { id: 'chantier', icone: '🏗', libelle: 'CHANTIER', titre: 'MODE CHANTIER 4D (v0)', element: chantier.element, cote: 'gauche' },
+          { id: 'chantier', icone: '🏗', libelle: 'CHANTIER', titre: 'HUB CHANTIER — CONDUITE DE TRAVAUX', element: chantier.element, cote: 'gauche' },
+          { id: 'vol', icone: '✈', libelle: 'VOL', titre: 'MODE PILOTAGE — DRONE / AVION', element: initFlightMode(viewer).element, cote: 'droite' },
         ],
         panneauxExistants: [
           { iconeHtml: '<span class="wt-oeil">👁</span>', icone: '👁', libelle: 'HQ', cibleId: 'wt-panel', surClic: recentrerHQ },

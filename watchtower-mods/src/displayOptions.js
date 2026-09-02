@@ -27,6 +27,9 @@ export const DISPLAY_OVERLAYS = Object.freeze([
   Object.freeze({ id: 'relief', label: '🏔 Relief (ombrage)', type: 'esri-hillshade', alpha: 0.42 }),
   Object.freeze({ id: 'labels', label: '🏷 Noms de lieux', type: 'esri-labels', alpha: 1.0 }),
   Object.freeze({ id: 'cadastre', label: '📐 Cadastre (France)', type: 'ign-cadastre', alpha: 0.85 }),
+  Object.freeze({ id: 'rail', label: '🚆 Rails & infrastructures ferroviaires', type: 'orm', alpha: 0.85 }),
+  Object.freeze({ id: 'mer', label: '⚓ Balisage marin (OpenSeaMap)', type: 'seamap', alpha: 0.9 }),
+  Object.freeze({ id: 'jour', label: '🛰 Photo satellite du JOUR (NASA)', type: 'gibs', alpha: 0.85 }),
 ]);
 
 /** Dernier index RainViewer (timestamps des frames radar/satellite). */
@@ -44,12 +47,38 @@ async function buildProvider(type) {
     const path = type === 'rv-radar' ? radar : ir;
     if (!path) throw new Error('RainViewer indisponible');
     // radar: schéma de couleurs 2 (universel), smooth=1, neige=1 ;
-    // satellite IR: schéma 0, options 0_0.
+    // satellite IR: schéma 0, options 0_0. IMPORTANT : les tuiles satellite
+    // RainViewer s'arrêtent au niveau 6 (au-delà = 404, calque invisible).
     const suffix = type === 'rv-radar' ? '2/1_1' : '0/0_0';
     return new Cesium.UrlTemplateImageryProvider({
       url: `${host}${path}/256/{z}/{x}/{y}/${suffix}.png`,
-      maximumLevel: 12,
+      maximumLevel: type === 'rv-radar' ? 12 : 6,
       credit: 'Météo © RainViewer',
+    });
+  }
+  if (type === 'orm') {
+    return new Cesium.UrlTemplateImageryProvider({
+      url: 'https://{s}.tiles.openrailwaymap.org/standard/{z}/{x}/{y}.png',
+      subdomains: ['a', 'b', 'c'],
+      maximumLevel: 19,
+      credit: '© OpenRailwayMap (CC-BY-SA) · données OSM',
+    });
+  }
+  if (type === 'seamap') {
+    return new Cesium.UrlTemplateImageryProvider({
+      url: 'https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png',
+      maximumLevel: 18,
+      credit: '© OpenSeaMap · données OSM',
+    });
+  }
+  if (type === 'gibs') {
+    // image satellite MODIS de la veille (NASA GIBS, mondial, sans clé)
+    const d = new Date(Date.now() - 86400000);
+    const date = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+    return new Cesium.UrlTemplateImageryProvider({
+      url: `https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MODIS_Terra_CorrectedReflectance_TrueColor/default/${date}/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg`,
+      maximumLevel: 9,
+      credit: 'NASA GIBS · MODIS Terra (image de la veille)',
     });
   }
   if (type === 'esri-hillshade') {

@@ -263,7 +263,7 @@ export function initFicheLieu(viewer) {
       <div class="visite">
         <button class="v-btn orbite">🚁 ORBITE DRONE</button>
         <button class="v-btn scene">🎬 SCÈNE SUIVANTE</button>
-        <button class="v-btn interieur">🏠 INTÉRIEUR</button>
+        <button class="v-btn interieur">🚶 VUE POV (street)</button>
         <button class="v-btn stop">⏹ STOP</button>
       </div>
       <div class="note3d">VISITE 3D : orbite/scènes autour du bâtiment, ou visite INTÉRIEURE
@@ -371,23 +371,25 @@ export function initFicheLieu(viewer) {
     const h = parseFloat(tags.height) || (parseFloat(tags['building:levels']) || 0) * 3.2 || 7;
     const sol = viewer.scene.globe.getHeight(Cesium.Cartographic.fromDegrees(cx, cy)) || 0;
 
-    // volume translucide : murs (extrusion) + arêtes
+    // volume translucide : murs (extrusion, hauteurs absolues fiables)
     const entites = [];
     entites.push(viewer.entities.add({
       polygon: {
         hierarchy: Cesium.Cartesian3.fromDegreesArray(plat),
         material: Cesium.Color.CYAN.withAlpha(0.14),
-        height: 0, heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
-        extrudedHeight: h, extrudedHeightReference: Cesium.HeightReference.RELATIVE_TO_GROUND,
+        height: sol, extrudedHeight: sol + h,
         outline: true, outlineColor: Cesium.Color.CYAN.withAlpha(0.85),
       },
     }));
 
-    // caméra à hauteur d'homme au centre du bâtiment
+    // POV « street view » : on se place DEVANT le bâtiment, à hauteur d'homme,
+    // face à la façade — puis on se déplace librement (ZQSD).
+    const rayonBat = Math.max(12, Math.sqrt(bat.geometry.length) * 4);
+    const latDevant = cy - ((rayonBat + 14) / 111320); // au sud du bâtiment
     viewer.scene.screenSpaceCameraController.enableInputs = false;
     viewer.camera.setView({
-      destination: Cesium.Cartesian3.fromDegrees(cx, cy, sol + 1.7),
-      orientation: { heading: 0, pitch: 0, roll: 0 },
+      destination: Cesium.Cartesian3.fromDegrees(cx, latDevant, sol + 1.7),
+      orientation: { heading: 0, pitch: Cesium.Math.toRadians(6), roll: 0 }, // face au bâtiment, léger regard vers le haut
     });
 
     // pilotage drone : ZQSD/WASD déplacer · flèches regarder · R/F monter/descendre
@@ -422,7 +424,7 @@ export function initFicheLieu(viewer) {
     barre.style.cssText = 'position:fixed;bottom:160px;left:50%;transform:translateX(-50%);z-index:2000;'
       + 'background:rgba(8,12,20,0.92);border:1px solid #00d4ff;border-radius:10px;padding:8px 14px;'
       + 'font-family:var(--font-mono,monospace);font-size:9px;letter-spacing:1px;color:#e8eaed;display:flex;gap:12px;align-items:center;';
-    barre.innerHTML = `<span>🏠 INTÉRIEUR (schématique · ${tags.name || 'bâtiment'} · ~${Math.round(h)} m)
+    barre.innerHTML = `<span>🚶 POV STREET (${tags.name || 'bâtiment'} · ~${Math.round(h)} m · volume 3D du plan réel)
       — <b style="color:#00d4ff">ZQSD</b> déplacer · <b style="color:#00d4ff">FLÈCHES</b> regarder · <b style="color:#00d4ff">R/F</b> monter/descendre</span>
       <button style="cursor:pointer;background:rgba(240,90,90,0.12);border:1px solid #f08a8a;color:#f08a8a;border-radius:7px;padding:5px 10px;font-family:inherit;font-size:9px;font-weight:700">QUITTER</button>`;
     barre.querySelector('button').addEventListener('click', quitterInterieur);

@@ -349,15 +349,17 @@ export function initIntelTwin(viewer) {
         for (const w of ways) {
           if (!Array.isArray(w.geometry) || w.geometry.length < 3) continue;
           const plat = [];
-          for (const g of w.geometry) plat.push(g.lon, g.lat);
+          let cx = 0; let cy = 0;
+          for (const g of w.geometry) { plat.push(g.lon, g.lat); cx += g.lon; cy += g.lat; }
+          cx /= w.geometry.length; cy /= w.geometry.length;
           const tags = w.tags || {};
           const h = parseFloat(tags.height) || (parseFloat(tags['building:levels']) || 0) * 3.2 || 9;
+          const sol = viewer.scene.globe.getHeight(Cesium.Cartographic.fromDegrees(cx, cy)) || 0;
           elemsDs.entities.add({
             polygon: {
               hierarchy: Cesium.Cartesian3.fromDegreesArray(plat),
               material: Cesium.Color.fromCssColorString('#37b7ab').withAlpha(0.6),
-              height: 0, heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
-              extrudedHeight: h, extrudedHeightReference: Cesium.HeightReference.RELATIVE_TO_GROUND,
+              height: sol, extrudedHeight: sol + h,
               outline: true, outlineColor: Cesium.Color.CYAN.withAlpha(0.8),
             },
           });
@@ -389,7 +391,19 @@ export function initIntelTwin(viewer) {
     const liste = derniere.listes[CAT_LISTE[cat]] || [];
     const ind = derniere.indices;
     const sousIndics = {
-      population: [['Habitants (INSEE)', (derniere.commune?.population || 0).toLocaleString('fr-FR')], ['Code postal', derniere.commune?.codesPostaux?.[0] || '—'], ['Niveau territorial', Math.max(1, Math.ceil((ind.pop || 0) / 25))]],
+      population: (() => {
+        const c = derniere.commune || {};
+        const km2 = c.surface ? c.surface / 100 : 0; // geo.gouv = hectares
+        return [
+          ['Habitants (INSEE)', (c.population || 0).toLocaleString('fr-FR')],
+          ['Superficie', km2 ? `${km2.toFixed(1)} km²` : '—'],
+          ['Densité', km2 && c.population ? `${Math.round(c.population / km2).toLocaleString('fr-FR')} hab/km²` : '—'],
+          ['Code INSEE', c.code || '—'],
+          ['Code postal', c.codesPostaux?.[0] || '—'],
+          ['Département', c.codeDepartement || '—'],
+          ['Niveau territorial', Math.max(1, Math.ceil((ind.pop || 0) / 25))],
+        ];
+      })(),
       education: [['Établissements détectés', liste.length], ['Points/établissement', 12], ['Indice', `${ind.edu}%`]],
       economie: [['Commerces détectés', liste.length], ['Points/commerce', 3], ['Indice', `${ind.eco}%`], ['Étoiles', Math.max(1, Math.min(5, Math.ceil(ind.eco / 20)))]],
       sante: [['Équipements détectés', liste.length], ['Points/équipement', 8], ['Indice', `${ind.sante}%`]],
@@ -418,6 +432,33 @@ export function initIntelTwin(viewer) {
       </div>`;
     document.body.appendChild(drill);
     rendreDeplacable(drill.querySelector('.boite'), drill.querySelector('.tete'));
+    // POPULATION → comparatif départemental réel (classement des communes)
+    if (cat === 'population' && derniere.commune?.codeDepartement) {
+      const bloc = document.createElement('details');
+      bloc.open = true;
+      bloc.innerHTML = '<summary>🏆 CLASSEMENT DU DÉPARTEMENT</summary><div class="cls" style="padding:4px 6px;color:rgba(232,234,237,0.6)">chargement…</div>';
+      drill.querySelector('.defile .fiche').before(bloc);
+      fetch(`https://geo.api.gouv.fr/communes?codeDepartement=${derniere.commune.codeDepartement}&fields=nom,population`)
+        .then((r) => r.json())
+        .then((all) => {
+          if (!Array.isArray(all) || !all.length) throw new Error('vide');
+          const tri = all.filter((c) => c.population).sort((a, b) => b.population - a.population);
+          const rang = tri.findIndex((c) => c.nom === derniere.commune.nom) + 1;
+          const top = tri.slice(0, 8);
+          const ici = derniere.commune.nom;
+          if (rang > 8) top.push(tri[rang - 1]);
+          const max = top[0]?.population || 1;
+          bloc.querySelector('.cls').innerHTML = `
+            <div style="margin-bottom:5px">${ici} : <b>${rang ? `${rang}ᵉ` : '—'}</b> / ${tri.length} communes du ${derniere.commune.codeDepartement}</div>
+            ${top.map((c) => {
+              const pct = Math.max(2, Math.round((c.population / max) * 100));
+              const moi = c.nom === ici;
+              return `<div style="margin:3px 0"><div style="display:flex;justify-content:space-between;font-size:9px${moi ? ';color:#00d4ff;font-weight:700' : ''}"><span>${moi ? '📍 ' : ''}${c.nom}</span><span>${c.population.toLocaleString('fr-FR')}</span></div>
+                <div style="height:4px;border-radius:3px;background:rgba(255,255,255,0.08)"><div style="height:100%;width:${pct}%;border-radius:3px;background:${moi ? '#00d4ff' : 'rgba(0,212,255,0.35)'}"></div></div></div>`;
+            }).join('')}`;
+        })
+        .catch(() => { bloc.querySelector('.cls').textContent = '⚠ classement indisponible (réseau).'; });
+    }
     montrerElements3D(cat, liste); // icônes volantes + bâtiments 3D — clic sur un bâtiment = FICHE LIEU
     drill.querySelector('.x').addEventListener('click', fermerDrill);
     drill.addEventListener('click', (e) => { if (e.target === drill) fermerDrill(); });
@@ -630,7 +671,7 @@ export function initIntelTwin(viewer) {
       const lat = Cesium.Math.toDegrees(c.latitude);
       const lon = Cesium.Math.toDegrees(c.longitude);
       const [commune, elements] = await Promise.all([
-        fetch(`https://geo.api.gouv.fr/communes?lat=${lat}&lon=${lon}&fields=nom,population,codesPostaux,code`).then((r) => r.json()).then((d) => d?.[0]).catch(() => null),
+        fetch(`https://geo.api.gouv.fr/communes?lat=${lat}&lon=${lon}&fields=nom,population,codesPostaux,code,surface,codeDepartement`).then((r) => r.json()).then((d) => d?.[0]).catch(() => null),
         overpass(`(
           node(around:1200,${lat},${lon})[amenity~"school|college|kindergarten|university"];
           node(around:1200,${lat},${lon})[amenity~"hospital|pharmacy|doctors|clinic"];

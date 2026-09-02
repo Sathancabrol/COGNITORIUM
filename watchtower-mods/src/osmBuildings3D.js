@@ -59,26 +59,41 @@ export function initOsmBuildings3D(viewer) {
       let n = 0;
       for (const w of ways) {
         const plat = [];
-        for (const g of w.geometry) plat.push(g.lon, g.lat);
+        let cx = 0; let cy = 0;
+        for (const g of w.geometry) { plat.push(g.lon, g.lat); cx += g.lon; cy += g.lat; }
+        cx /= w.geometry.length; cy /= w.geometry.length;
         const tags = w.tags || {};
         const h = parseFloat(tags.height) || (parseFloat(tags['building:levels']) || 0) * 3.2 || 8;
         const publique = PUBLICS.has(tags.building) || tags.amenity;
+        // hauteurs ABSOLUES (sol mesuré) — plus fiable que les heightReference
+        const sol = viewer.scene.globe.getHeight(Cesium.Cartographic.fromDegrees(cx, cy)) || 0;
         ds.entities.add({
           polygon: {
             hierarchy: Cesium.Cartesian3.fromDegreesArray(plat),
             material: (publique ? Cesium.Color.ORANGE : Cesium.Color.CYAN).withAlpha(publique ? 0.75 : 0.55),
-            height: 0,
-            heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
-            extrudedHeight: h,
-            extrudedHeightReference: Cesium.HeightReference.RELATIVE_TO_GROUND,
+            height: sol,
+            extrudedHeight: sol + h,
             outline: false,
           },
         });
+        // repères / points d'intérêt : le nom flotte au-dessus du bâtiment
+        if (tags.name) {
+          ds.entities.add({
+            position: Cesium.Cartesian3.fromDegrees(cx, cy, sol + h + 6),
+            label: {
+              text: `${publique ? '🏛 ' : ''}${tags.name}`, font: '11px JetBrains Mono, monospace',
+              fillColor: publique ? Cesium.Color.ORANGE : Cesium.Color.WHITE,
+              showBackground: true, backgroundColor: Cesium.Color.fromCssColorString('#0a0a0f').withAlpha(0.7),
+              disableDepthTestDistance: Infinity,
+              scaleByDistance: new Cesium.NearFarScalar(500, 1, 8000, 0),
+            },
+          });
+        }
         n += 1;
       }
       statut.textContent = n
-        ? `✅ ${n} bâtiments extrudés (publics en orange). Recharge après déplacement pour couvrir une autre zone.`
-        : 'Aucune emprise de bâtiment OSM ici.';
+        ? `✅ ${n} bâtiments extrudés + noms des repères (publics en orange). Recharge après déplacement.`
+        : 'Aucune emprise de bâtiment OSM ici — zoome sur une zone urbaine et relance.';
     } catch {
       statut.textContent = '⚠ Source OSM saturée — réessaie dans quelques secondes.';
     }

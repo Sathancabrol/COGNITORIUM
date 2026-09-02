@@ -188,18 +188,43 @@ export function initChantier(viewer) {
         <div><span class="k">TYPE</span> ${f.famille || f.type_marche || f.nature || '—'} · <span class="k">DÉPT</span> ${f.code_departement || '—'}</div>
         <div><span class="k">BUDGET</span> ${f.montant ? fmtEuro(Number(f.montant)) : 'non publié (voir DCE)'}</div>
         <div><span class="k">ADÉQUATION</span> <span style="font-size:14px">${ad}</span> ${adTxt}</div>
-        <div style="margin-top:6px;color:rgba(232,234,237,0.55)">DCE (règlement, plans, DICT/DUDG…) via l'avis officiel ;
-        dépose ensuite les fichiers dans 📂 DOSSIER — ils alimenteront la fiche projet de ▶ SIMULATION.</div>
+        <div style="margin-top:6px;color:rgba(232,234,237,0.55)">📚 RESSOURCES = accès rapide aux documents ·
+        🧮 DEVIS = génère le dossier interne (budget/planning) dans ▶ SIMULATION.</div>
         <div class="actions">
-          <a href="${lien}" target="_blank" rel="noopener">📄 AVIS + DCE ↗</a>
-          <button class="ajouter" type="button">📌 AJOUTER À MES PROJETS</button>
+          <button class="ressources" type="button">📚 RESSOURCES</button>
+          <button class="devis" type="button">🧮 DEVIS</button>
+          <button class="ajouter" type="button">📌 MES PROJETS</button>
           <button class="fermer" type="button" style="border-color:rgba(255,255,255,0.2);color:rgba(232,234,237,0.6)">FERMER</button>
+        </div>
+        <div class="menu-res" style="display:none;margin-top:6px;flex-direction:column;gap:5px">
+          <a href="${lien}" target="_blank" rel="noopener" style="cursor:pointer;padding:7px 10px;border-radius:8px;background:rgba(0,212,255,0.08);border:1px solid rgba(0,212,255,0.35);color:#00d4ff;text-decoration:none">📄 Avis officiel + DCE (plans, DICT, DUDG…) ↗</a>
+          <button class="mes-docs" type="button" style="cursor:pointer;padding:7px 10px;border-radius:8px;background:rgba(0,212,255,0.08);border:1px solid rgba(0,212,255,0.35);color:#00d4ff;font-family:inherit;font-size:9px;text-align:left">📂 Mes documents importés (onglet DOSSIER)</button>
         </div>
       </div>`;
     document.body.appendChild(focus);
     import('./draggable.js').then((m) => m.rendreDeplacable(focus.querySelector('.boite'), focus.querySelector('.titre'))).catch(() => {});
     focus.querySelector('.fermer').addEventListener('click', () => focus.remove());
     focus.addEventListener('click', (e) => { if (e.target === focus) focus.remove(); });
+    focus.querySelector('.ressources').addEventListener('click', () => {
+      const m = focus.querySelector('.menu-res');
+      m.style.display = m.style.display === 'none' ? 'flex' : 'none';
+    });
+    focus.querySelector('.mes-docs').addEventListener('click', () => { focus.remove(); rendrePage('dossier'); });
+    focus.querySelector('.devis').addEventListener('click', () => {
+      // devis interne : crée le projet + la fiche simulation (budget/planning/administratif)
+      const nom = String(objet).slice(0, 80);
+      if (!projets.some((x) => x.nom === nom)) projets.push({ nom, source: 'BOAMP', date: Date.now() });
+      ecrireJson(S_PROJETS, projets);
+      sims[nom] = {
+        budget: Number(f.montant) || 480000,
+        duree: 110,
+        notes: `DEVIS INTERNE — ${f.nomacheteur || f.acheteur || 'acheteur public'} · limite de réponse ${f.datelimitereponse || '—'}. Compléter avec le DCE (📚 RESSOURCES).`,
+      };
+      sims.__sel = nom;
+      ecrireJson(S_SIM, sims);
+      focus.remove();
+      rendrePage('simulation');
+    });
     focus.querySelector('.ajouter').addEventListener('click', () => {
       projets.push({ nom: String(objet).slice(0, 80), source: 'BOAMP', date: Date.now() });
       ecrireJson(S_PROJETS, projets);
@@ -338,7 +363,19 @@ export function initChantier(viewer) {
         <button class="c-btn fin" type="button" style="display:none">✔ TERMINER LA ZONE</button>
         <div class="forme" style="display:none;flex-direction:column;gap:5px">
           <input class="f-nom" placeholder="Nom de la zone (ex : Terrassement lot A)" />
+          <select class="f-type">
+            <option value="batiment">🏢 Bâtiment neuf</option>
+            <option value="voirie">🛣 VRD / voirie</option>
+            <option value="terrassement">⛰ Terrassement pur</option>
+            <option value="renovation">🔨 Rénovation</option>
+            <option value="paysager">🌳 Aménagement paysager</option>
+          </select>
           <div class="rang"><input class="f-debut" type="date" /><input class="f-fin" type="date" /></div>
+          <div class="rang">
+            <select class="f-mat" multiple size="3" style="flex:1" title="Matériel attribué (Ctrl+clic = multiple)"></select>
+            <select class="f-pers" multiple size="3" style="flex:1" title="Collaborateurs attribués (Ctrl+clic = multiple)"></select>
+          </div>
+          <div class="statut" style="margin:0">⬆ attribution : 🚜 matériel (onglet GESTION) · 👷 collaborateurs (onglet ÉQUIPE). Ctrl+clic = sélection multiple.</div>
           <button class="c-btn sauver" type="button">💾 ENREGISTRER LA ZONE</button>
         </div>
         <input type="range" min="0" max="100" value="50" /><div class="date">—</div>
@@ -348,13 +385,36 @@ export function initChantier(viewer) {
         Curseur 4D : gris = à venir · orange = en cours · vert = terminé.</div>`;
       const curseur = page.querySelector('input[type=range]');
       const forme = page.querySelector('.forme');
+      // gabarits de phasage selon le TYPE de chantier (fractions cumulées de la durée)
+      const GABARITS = {
+        batiment: [['Installation', 0.06], ['Terrassement', 0.2], ['Gros œuvre', 0.5], ['Second œuvre', 0.78], ['Finitions', 0.94], ['Livraison', 1]],
+        voirie: [['Installation·déviation', 0.08], ['Rabotage/démolition', 0.2], ['Terrassement', 0.42], ['Assises & réseaux', 0.66], ['Enrobés', 0.88], ['Signalisation·réception', 1]],
+        terrassement: [['Installation', 0.08], ['Décapage', 0.25], ['Déblais/remblais', 0.72], ['Compactage·drainage', 0.92], ['Réception', 1]],
+        renovation: [['Diagnostic·curage', 0.16], ['Structure·reprises', 0.44], ['Second œuvre', 0.74], ['Finitions', 0.94], ['Livraison', 1]],
+        paysager: [['Préparation du sol', 0.22], ['Réseaux·arrosage', 0.44], ['Plantations', 0.74], ['Mobilier·allées', 0.92], ['Réception', 1]],
+      };
+      const phaseCourante = (z, t) => {
+        if (t < z.debut || t > z.fin) return null;
+        const frac = (t - z.debut) / Math.max(1, z.fin - z.debut);
+        for (const [nom, fin] of GABARITS[z.type] || GABARITS.batiment) if (frac <= fin) return nom;
+        return null;
+      };
       let enEdition = null;
       const ouvrirForme = (z) => {
         forme.style.display = 'flex';
         const auj = new Date();
         page.querySelector('.f-nom').value = z?.nom || '';
+        page.querySelector('.f-type').value = z?.type || 'batiment';
         page.querySelector('.f-debut').value = new Date(z?.debut || auj).toISOString().slice(0, 10);
         page.querySelector('.f-fin').value = new Date(z?.fin || auj.getTime() + 30 * jour).toISOString().slice(0, 10);
+        const selMat = page.querySelector('.f-mat');
+        const selPers = page.querySelector('.f-pers');
+        selMat.innerHTML = inventaire.length
+          ? inventaire.map((it) => `<option${(z?.materiel || []).includes(it.nom) ? ' selected' : ''}>${it.nom}</option>`).join('')
+          : '<option disabled>— inventaire vide (GESTION) —</option>';
+        selPers.innerHTML = equipe.length
+          ? equipe.map((m) => `<option${(z?.personnel || []).includes(m.nom) ? ' selected' : ''}>${m.nom}</option>`).join('')
+          : '<option disabled>— équipe vide (ÉQUIPE) —</option>';
       };
       const majTemps = () => {
         const t0 = zones.length ? Math.min(...zones.map((z) => z.debut)) - 5 * jour : Date.now() - 15 * jour;
@@ -365,10 +425,16 @@ export function initChantier(viewer) {
         const liste = page.querySelector('.liste');
         liste.innerHTML = '';
         zones.forEach((z, i) => {
-          const etat = dateCourante < z.debut ? '⏳ à venir' : dateCourante > z.fin ? '✅ terminé' : '🚧 en cours';
+          const phase = phaseCourante(z, dateCourante);
+          const etat = dateCourante < z.debut ? '⏳ à venir' : dateCourante > z.fin ? '✅ terminé' : `🚧 ${phase || 'en cours'}`;
+          const TYPES_LBL = { batiment: '🏢', voirie: '🛣', terrassement: '⛰', renovation: '🔨', paysager: '🌳' };
+          const attribs = [
+            (z.materiel || []).length ? `🚜 ${z.materiel.join(', ')}` : '',
+            (z.personnel || []).length ? `👷 ${z.personnel.join(', ')}` : '',
+          ].filter(Boolean).join(' · ');
           const l = document.createElement('div');
           l.className = 'ligne';
-          l.innerHTML = `<span>🏗</span><span>${z.nom}<br><small style="color:rgba(232,234,237,0.5)">${fmtDate(z.debut)} → ${fmtDate(z.fin)} · ${etat}${z.parcelle ? ' · 📐 cadastre' : ''}</small></span>
+          l.innerHTML = `<span>${TYPES_LBL[z.type] || '🏗'}</span><span>${z.nom}<br><small style="color:rgba(232,234,237,0.5)">${fmtDate(z.debut)} → ${fmtDate(z.fin)} · ${etat}${z.parcelle ? ' · 📐 cadastre' : ''}${attribs ? `<br>${attribs}` : ''}</small></span>
             <button class="mod" title="Modifier">✎</button><button class="sup">✕</button>`;
           l.querySelector('.mod').addEventListener('click', () => { enEdition = i; ouvrirForme(z); });
           l.querySelector('.sup').addEventListener('click', () => {
@@ -397,13 +463,16 @@ export function initChantier(viewer) {
       });
       page.querySelector('.sauver').addEventListener('click', () => {
         const nom = page.querySelector('.f-nom').value.trim() || `Zone ${zones.length + 1}`;
+        const type = page.querySelector('.f-type').value;
+        const materiel = [...page.querySelector('.f-mat').selectedOptions].map((o) => o.value).filter((v) => !v.startsWith('—'));
+        const personnel = [...page.querySelector('.f-pers').selectedOptions].map((o) => o.value).filter((v) => !v.startsWith('—'));
         const debut = new Date(page.querySelector('.f-debut').value || Date.now()).getTime();
         const fin = new Date(page.querySelector('.f-fin').value || Date.now() + 30 * jour).getTime();
         if (enEdition != null) {
-          Object.assign(zones[enEdition], { nom, debut, fin: Math.max(fin, debut + jour) });
+          Object.assign(zones[enEdition], { nom, type, materiel, personnel, debut, fin: Math.max(fin, debut + jour) });
           enEdition = null;
         } else {
-          zones.push({ nom, debut, fin: Math.max(fin, debut + jour), coords: modeCarte.coords, parcelle: modeCarte.type === 'parcelle' });
+          zones.push({ nom, type, materiel, personnel, debut, fin: Math.max(fin, debut + jour), coords: modeCarte.coords, parcelle: modeCarte.type === 'parcelle' });
         }
         ecrireJson(S_ZONES, zones);
         modeCarte = null; window.__wtDessin = false;
