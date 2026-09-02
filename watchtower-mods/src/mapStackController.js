@@ -61,6 +61,15 @@ export const MAP_STACKS = [
     ignFormat: 'image/png',
     requiresIon: false,
   },
+  // WATCHTOWER — fond relief topographique mondial (courbes de niveau,
+  // ombrage), style OpenTopoMap, gratuit avec attribution.
+  {
+    id: 'opentopo',
+    label: 'Relief (OpenTopoMap)',
+    shortLabel: 'TOPO',
+    kind: 'opentopo',
+    requiresIon: false,
+  },
 ];
 
 const DEFAULT_OSM_CREDIT = '© OpenStreetMap contributors © CARTO';
@@ -416,6 +425,13 @@ export class MapStackController {
         tileMatrixSetID: 'PM',
         maximumLevel: 19,
         credit: 'IGN — Géoplateforme (data.geopf.fr) · Licence Ouverte',
+      });
+    } else if (stack.kind === 'opentopo') {
+      provider = new Cesium.UrlTemplateImageryProvider({
+        url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
+        subdomains: ['a', 'b', 'c'],
+        maximumLevel: 17,
+        credit: '© OpenStreetMap contributors, SRTM — style © OpenTopoMap (CC-BY-SA)',
       });
     } else {
       throw new Error(`Unsupported map stack: ${stack.id}`);

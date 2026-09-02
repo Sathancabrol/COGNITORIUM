@@ -21,6 +21,7 @@
  */
 
 import * as Cesium from 'cesium';
+import { initDisplayOptions } from './displayOptions.js';
 
 const HOME_KEY = 'watchtower.domicile.v1';
 const VIEWS_KEY = 'watchtower.vues.v1';
@@ -183,6 +184,12 @@ const CSS = `
 .wt-vue { display: flex; align-items: center; gap: 5px; margin: 3px 0; }
 .wt-vue .nom { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wt-note { font-size: 8px; color: var(--text-dim, rgba(232,234,237,0.35)); line-height: 1.5; margin-top: 4px; }
+.wt-calques { display: flex; flex-wrap: wrap; gap: 5px; }
+.wt-calque { flex: 1 1 46%; text-align: left; padding: 6px 8px; }
+.wt-calque.actif {
+  color: #43d17a; border-color: rgba(67, 209, 122, 0.55);
+  background: rgba(67, 209, 122, 0.13); box-shadow: 0 0 10px rgba(67, 209, 122, 0.15);
+}
 #wt-drop {
   position: fixed; inset: 0; z-index: 2500; display: none;
   align-items: center; justify-content: center;
@@ -221,6 +228,10 @@ export function initWatchtowerExtras({ viewer }) {
         <div class="wt-liens" data-wt="liens"></div>
       </div>
       <div class="wt-section">
+        <div class="wt-k">AFFICHAGE — CALQUES (OPEN SOURCE, SANS CLÉ)</div>
+        <div data-wt="calques"></div>
+      </div>
+      <div class="wt-section">
         <div class="wt-k">MÉTÉO SUR PLACE (OPEN-METEO, SANS CLÉ)</div>
         <div class="wt-ligne"><span>Conditions</span><b data-wt="meteo">—</b></div>
         <div class="wt-ligne"><span>Température</span><b data-wt="temp">—</b></div>
@@ -254,6 +265,9 @@ export function initWatchtowerExtras({ viewer }) {
   panel.querySelector('.wt-tete').addEventListener('click', () => panel.classList.toggle('replie'));
 
   const el = (name) => panel.querySelector(`[data-wt="${name}"]`);
+
+  /* ── AFFICHAGE : calques activables (pluie, nuages, relief, noms, cadastre) ── */
+  const displayOptions = initDisplayOptions(viewer, el('calques'));
 
   /* ── horloge française ── */
   const majHorloge = () => {
@@ -447,5 +461,5 @@ export function initWatchtowerExtras({ viewer }) {
     }
   });
 
-  return { panel };
+  return { panel, displayOptions };
 }
