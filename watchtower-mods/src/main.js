@@ -29,6 +29,7 @@ import { initFicheLieu } from './ficheLieu.js';
 import { initVisualFilters } from './visualFilters.js';
 import { initOsmBuildings3D } from './osmBuildings3D.js';
 import { initChantier } from './chantier.js';
+import { initIntelTwin } from './intelTwin.js';
 import { initFrenchHud } from './frenchHud.js';
 import { initPaywallGate } from './paywallGate.js';
 import { MapStackController } from './mapStackController.js';
@@ -378,6 +379,9 @@ async function init() {
       const filtres = initVisualFilters();
       const bati = initOsmBuildings3D(viewer);
       const chantier = initChantier(viewer);
+      // INTEL nouvelle génération : tableau de bord « jumeau numérique »
+      // (remplace le HUD intel d'origine — créé AVANT le dock qui le bascule).
+      window.__godsEyeView.intel = initIntelTwin(viewer);
       window.__godsEyeView.dock = initMobiDock({
         panneauxAncres: [
           { id: 'chat', icone: '💬', libelle: 'CHAT', titre: 'CHAT — CONSOLE DE COMMANDES', element: chat.element, cote: 'gauche', surOuverture: chat.focus },
@@ -388,7 +392,7 @@ async function init() {
         ],
         panneauxExistants: [
           { icone: '🗼', libelle: 'FRANCE', cibleId: 'wt-panel' },
-          { icone: '🧠', libelle: 'INTEL', cibleId: 'intel-hud' },
+          { icone: '🧠', libelle: 'INTEL', cibleId: 'wt-intel' },
           { icone: '🎚', libelle: 'VISUEL+', cibleId: 'pp-toggles' },
           { icone: '🎛', libelle: 'PARAMS', cibleId: 'param-slider-panel' },
           { icone: '⚙', libelle: 'ACTIONS', cibleId: 'top-center-actions' },
