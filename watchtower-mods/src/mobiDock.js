@@ -19,6 +19,9 @@
  */
 
 const ETAT_KEY = 'watchtower.dock.v1';
+const HUD_AUTO_KEY = 'watchtower.hudAuto.v1';
+
+import { rendreDeplacable } from './draggable.js';
 
 const CSS = `
 #wt-dock {
@@ -72,6 +75,20 @@ const CSS = `
 }
 .wt-dock-panel .wt-dock-corps { overflow-y: auto; flex: 1; }
 .wt-dock-cache { display: none !important; }
+/* œil animé du bouton HQ (logo de l'app : il regarde autour puis cligne) */
+.wt-oeil { display: inline-block; animation: wt-oeil 3.4s ease-in-out infinite; }
+@keyframes wt-oeil {
+  0%, 52%, 100% { transform: none; }
+  12% { transform: translateX(-3px); }
+  30% { transform: translateX(3px); }
+  68% { transform: scaleY(0.15); }
+  74% { transform: none; }
+}
+/* HUD auto-masquable : glisse élégamment hors de l'écran si inactif */
+#wt-dock { transition: transform 0.5s ease, opacity 0.5s ease; }
+#command-dock { transition: transform 0.5s ease, opacity 0.5s ease; }
+body.wt-hud-cache #wt-dock { transform: translateY(130%); opacity: 0; pointer-events: none; }
+body.wt-hud-cache #command-dock { transform: translate(-50%, 200%) !important; opacity: 0; pointer-events: none; }
 `;
 
 function lireEtat() {
@@ -118,6 +135,7 @@ export function initMobiDock({ panneauxAncres = [], panneauxExistants = [] } = {
       <div class="wt-dock-corps"></div>`;
     wrap.querySelector('.wt-dock-corps').appendChild(p.element);
     document.body.appendChild(wrap);
+    rendreDeplacable(wrap, wrap.querySelector('.wt-dock-titre'));
 
     const btn = document.createElement('button');
     btn.type = 'button';
@@ -148,9 +166,10 @@ export function initMobiDock({ panneauxAncres = [], panneauxExistants = [] } = {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = `wt-dock-btn${ouvert ? ' actif' : ''}`;
-    btn.innerHTML = `<span class="ic">${p.icone}</span><span class="lb">${p.libelle}</span>`;
+    btn.innerHTML = `<span class="ic">${p.iconeHtml || p.icone}</span><span class="lb">${p.libelle}</span>`;
     btn.setAttribute('aria-pressed', String(ouvert));
     btn.addEventListener('click', () => {
+      if (typeof p.surClic === 'function') p.surClic();
       const visible = !cible.classList.contains('wt-dock-cache');
       cible.classList.toggle('wt-dock-cache', visible);
       btn.classList.toggle('actif', !visible);
@@ -161,6 +180,33 @@ export function initMobiDock({ panneauxAncres = [], panneauxExistants = [] } = {
     });
     dock.appendChild(btn);
   }
+
+  // ── réduction élégante du HUD : bouton ⤓ + auto-masquage si inactif ──
+  let hudAuto = false;
+  try { hudAuto = window.localStorage.getItem(HUD_AUTO_KEY) === '1'; } catch { /* défaut off */ }
+  let hudTimer = null;
+  const reveiller = () => {
+    document.body.classList.remove('wt-hud-cache');
+    if (hudTimer) window.clearTimeout(hudTimer);
+    if (hudAuto) hudTimer = window.setTimeout(() => document.body.classList.add('wt-hud-cache'), 9000);
+  };
+  for (const ev of ['pointermove', 'pointerdown', 'keydown', 'wheel']) {
+    window.addEventListener(ev, reveiller, { passive: true });
+  }
+  const btnHud = document.createElement('button');
+  btnHud.type = 'button';
+  btnHud.className = `wt-dock-btn${hudAuto ? ' actif' : ''}`;
+  btnHud.title = 'HUD auto-masqué après 9 s d\u2019inactivité (bouge la souris pour le rappeler)';
+  btnHud.innerHTML = `<span class="ic">⤓</span><span class="lb">RÉDUIRE</span>`;
+  btnHud.addEventListener('click', () => {
+    hudAuto = !hudAuto;
+    btnHud.classList.toggle('actif', hudAuto);
+    try { window.localStorage.setItem(HUD_AUTO_KEY, hudAuto ? '1' : '0'); } catch { /* plein */ }
+    if (hudAuto) document.body.classList.add('wt-hud-cache');
+    else { document.body.classList.remove('wt-hud-cache'); if (hudTimer) window.clearTimeout(hudTimer); }
+  });
+  dock.appendChild(btnHud);
+  reveiller();
 
   return { dock, fermerAncres };
 }

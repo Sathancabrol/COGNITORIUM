@@ -379,6 +379,23 @@ async function init() {
       const filtres = initVisualFilters();
       const bati = initOsmBuildings3D(viewer);
       const chantier = initChantier(viewer);
+      // HQ : recentre sur ta position (GPS → domicile → orbite terrestre)
+      const recentrerHQ = () => {
+        const voler = (lo, la, alt) => viewer.camera.flyTo({ destination: Cesium.Cartesian3.fromDegrees(lo, la, alt), duration: 2.2 });
+        const replis = () => {
+          try {
+            const h = JSON.parse(window.localStorage.getItem('watchtower.domicile.v1') || 'null');
+            if (Number.isFinite(h?.lon)) { voler(h.lon, h.lat, 1800); return; }
+          } catch { /* pas de domicile */ }
+          voler(3.75, 43.44, 21_000_000); // position inconnue → orbite de la Terre
+        };
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => voler(pos.coords.longitude, pos.coords.latitude, 1800),
+            replis, { timeout: 4000, maximumAge: 120000 },
+          );
+        } else replis();
+      };
       // INTEL nouvelle génération : tableau de bord « jumeau numérique »
       // (remplace le HUD intel d'origine — créé AVANT le dock qui le bascule).
       window.__godsEyeView.intel = initIntelTwin(viewer);
@@ -391,7 +408,7 @@ async function init() {
           { id: 'chantier', icone: '🏗', libelle: 'CHANTIER', titre: 'MODE CHANTIER 4D (v0)', element: chantier.element, cote: 'gauche' },
         ],
         panneauxExistants: [
-          { icone: '🗼', libelle: 'FRANCE', cibleId: 'wt-panel' },
+          { iconeHtml: '<span class="wt-oeil">👁</span>', icone: '👁', libelle: 'HQ', cibleId: 'wt-panel', surClic: recentrerHQ },
           { icone: '🧠', libelle: 'INTEL', cibleId: 'wt-intel' },
           { icone: '🎚', libelle: 'VISUEL+', cibleId: 'pp-toggles' },
           { icone: '🎛', libelle: 'PARAMS', cibleId: 'param-slider-panel' },
@@ -404,6 +421,12 @@ async function init() {
     try {
       window.__godsEyeView.fiche = initFicheLieu(viewer);
     } catch (e) { console.error('[watchtower] fiche lieu:', e); }
+    // toutes les fenêtres flottantes sont déplaçables
+    try {
+      const { rendreDeplacable } = await import('./draggable.js');
+      const panneauHq = document.getElementById('wt-panel');
+      if (panneauHq?.firstElementChild) rendreDeplacable(panneauHq, panneauHq.firstElementChild);
+    } catch (e) { console.error('[watchtower] draggable:', e); }
     // HUD en français (traduction au vol des libellés d'origine, gratuit).
     try {
       window.__godsEyeView.hudFr = initFrenchHud();

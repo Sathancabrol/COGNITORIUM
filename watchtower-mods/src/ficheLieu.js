@@ -18,6 +18,7 @@
  */
 
 import * as Cesium from 'cesium';
+import { rendreDeplacable } from './draggable.js';
 
 const TYPE_ICONES = {
   townhall: ['🏛', 'Mairie · bâtiment public'],
@@ -270,6 +271,7 @@ export function initFicheLieu(viewer) {
       ZQSD pour se déplacer). En mode payant (Google 3D), l'extérieur est photoréaliste.</div>`;
 
     panneau.querySelector('.fermer').addEventListener('click', fermer);
+    rendreDeplacable(panneau, panneau.querySelector('.entete'));
 
     // ── onglets : institutions / commerces / services autour (OSM) ──
     const REQ = {

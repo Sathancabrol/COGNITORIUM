@@ -18,6 +18,7 @@
  */
 
 import * as Cesium from 'cesium';
+import { rendreDeplacable } from './draggable.js';
 
 const PROFIL_KEY = 'watchtower.profil.v1';
 
@@ -107,6 +108,10 @@ export function initIntelTwin(viewer) {
 
   const heatDs = new Cesium.CustomDataSource('wt-intel-heat');
   viewer.dataSources.add(heatDs);
+  const elemsDs = new Cesium.CustomDataSource('wt-intel-elems');
+  viewer.dataSources.add(elemsDs);
+  const dangersDs = new Cesium.CustomDataSource('wt-intel-dangers');
+  viewer.dataSources.add(dangersDs);
 
   // identifiants de session façon carte cognitive
   let traceId;
@@ -128,10 +133,12 @@ export function initIntelTwin(viewer) {
       <div class="kpis"></div>
     </div>
     <button id="wti-analyser" type="button">⟳ ANALYSER LA VUE</button>
+    <div id="wti-resume" class="wti-glass" style="display:none;position:absolute;top:104px;left:50%;transform:translateX(-50%);padding:7px 14px;font-size:9px;letter-spacing:1px;max-width:70vw;text-align:center"></div>
     <div id="wti-gauche" class="wti-glass">
       <div class="titre">CIVILISATION TERRITORIALE</div>
       <div class="cats"></div>
       <button class="btn analyse-terr" style="cursor:pointer;width:100%;padding:8px;font-family:inherit;font-size:9px;font-weight:700;letter-spacing:2px;border-radius:8px;background:rgba(120,200,190,0.12);border:1px solid #7dd3c8;color:#7dd3c8">🛰 MODE ANALYSE TERRITORIALE</button>
+      <button class="btn dangers" style="cursor:pointer;width:100%;margin-top:5px;padding:8px;font-family:inherit;font-size:9px;font-weight:700;letter-spacing:2px;border-radius:8px;background:rgba(240,122,106,0.1);border:1px solid #f07a6a;color:#f07a6a">⚠ DANGERS · EAU · AIR · RÉSEAUX</button>
       <div class="note">Indices calculés depuis les données ouvertes (INSEE via geo.gouv.fr ·
       OpenStreetMap, rayon 1,2 km). Heuristiques transparentes, pas une IA. Gratuit, sans clé.</div>
     </div>
@@ -148,10 +155,15 @@ export function initIntelTwin(viewer) {
         <div class="sous">COMPÉTENCES CLÉS</div><div class="skills"></div>
         <div class="sous">ÉQUIPEMENTS PAR CATÉGORIE</div><canvas class="histo" width="240" height="90"></canvas>
         <div class="sous">CAUSAL MATRIX</div><canvas class="matrice" width="240" height="110"></canvas>
+        <div class="sous">📰 FLUX VILLE (GDELT · temps réel)</div>
+        <div class="news" style="font-size:9px;line-height:1.6">—</div>
       </div>
       <div class="vue-profil" style="display:none"></div>
     </div>`;
   document.body.appendChild(root);
+  // fenêtres déplaçables (poignée = titre / rangée d'onglets)
+  rendreDeplacable(root.querySelector('#wti-gauche'), root.querySelector('#wti-gauche .titre'));
+  rendreDeplacable(root.querySelector('#wti-droit'), root.querySelector('#wti-droit .ongles'));
 
   const zoneKpis = root.querySelector('.kpis');
   const zoneCats = root.querySelector('.cats');
@@ -301,6 +313,59 @@ export function initIntelTwin(viewer) {
   const CAT_LISTE = { education: 'ecoles', sante: 'sante', economie: 'commerces', services: 'services', bonheur: 'vert' };
 
   let drill = null;
+  const CAT_ICONE = { education: '🎓', sante: '🏥', economie: '🛍', services: '🏛', bonheur: '🌳' };
+  const CAT_FILTRE_3D = {
+    education: 'amenity~"school|college|kindergarten|university"',
+    sante: 'amenity~"hospital|clinic"',
+    services: 'amenity~"townhall|police|fire_station|library"',
+  };
+  /** Icônes-fiches volantes (gyroscope) au-dessus des lieux + bâtiments en 3D. */
+  async function montrerElements3D(cat, liste) {
+    elemsDs.entities.removeAll();
+    const ic = CAT_ICONE[cat];
+    if (!ic || !liste.length) return;
+    const t0 = Date.now();
+    for (const e of liste.slice(0, 40)) {
+      if (!Number.isFinite(e.lat)) continue;
+      const { lon, lat } = e;
+      elemsDs.entities.add({
+        position: new Cesium.CallbackProperty(() => Cesium.Cartesian3.fromDegrees(
+          lon, lat, 26 + Math.sin((Date.now() - t0) / 650 + lon * 90) * 5,
+        ), false),
+        label: {
+          text: ic, font: '24px sans-serif', disableDepthTestDistance: Infinity,
+          scaleByDistance: new Cesium.NearFarScalar(300, 1.3, 20000, 0.4),
+        },
+      });
+      elemsDs.entities.add({
+        position: Cesium.Cartesian3.fromDegrees(lon, lat),
+        point: { pixelSize: 5, color: Cesium.Color.CYAN, heightReference: Cesium.HeightReference.CLAMP_TO_GROUND },
+      });
+    }
+    // les bâtiments correspondants se modélisent en 3D (extrusion OSM)
+    if (CAT_FILTRE_3D[cat] && derniere) {
+      try {
+        const ways = await overpass(`way(around:1300,${derniere.lat},${derniere.lon})[building][${CAT_FILTRE_3D[cat]}];out geom 60;`);
+        for (const w of ways) {
+          if (!Array.isArray(w.geometry) || w.geometry.length < 3) continue;
+          const plat = [];
+          for (const g of w.geometry) plat.push(g.lon, g.lat);
+          const tags = w.tags || {};
+          const h = parseFloat(tags.height) || (parseFloat(tags['building:levels']) || 0) * 3.2 || 9;
+          elemsDs.entities.add({
+            polygon: {
+              hierarchy: Cesium.Cartesian3.fromDegreesArray(plat),
+              material: Cesium.Color.fromCssColorString('#37b7ab').withAlpha(0.6),
+              height: 0, heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+              extrudedHeight: h, extrudedHeightReference: Cesium.HeightReference.RELATIVE_TO_GROUND,
+              outline: true, outlineColor: Cesium.Color.CYAN.withAlpha(0.8),
+            },
+          });
+        }
+      } catch { /* extrusion facultative */ }
+    }
+  }
+
   function fermerDrill() {
     drill?.remove(); drill = null;
     root.querySelectorAll('.wti-kpi').forEach((k) => {
@@ -352,6 +417,8 @@ export function initIntelTwin(viewer) {
         </div>
       </div>`;
     document.body.appendChild(drill);
+    rendreDeplacable(drill.querySelector('.boite'), drill.querySelector('.tete'));
+    montrerElements3D(cat, liste); // icônes volantes + bâtiments 3D — clic sur un bâtiment = FICHE LIEU
     drill.querySelector('.x').addEventListener('click', fermerDrill);
     drill.addEventListener('click', (e) => { if (e.target === drill) fermerDrill(); });
     drill.querySelectorAll('.item').forEach((b) => {
@@ -388,6 +455,12 @@ export function initIntelTwin(viewer) {
     const paires = [['Éducation', ind.edu], ['Santé', ind.sante], ['Économie', ind.eco], ['Services publics', ind.res], ['Bonheur', ind.bonheur]];
     const faibles = paires.filter(([, v]) => v < 45).map(([n]) => n);
     const forts = paires.filter(([, v]) => v >= 60).map(([n]) => n);
+    // le résumé s'affiche AUSSI dans le HUD intel de la vue principale
+    const resume = root.querySelector('#wti-resume');
+    resume.style.display = 'block';
+    resume.innerHTML = `⚠ BESOINS : <b style="color:#f07a6a">${faibles.join(', ') || 'aucun'}</b>
+      · ✅ APPUIS : <b style="color:#43d17a">${forts.join(', ') || '—'}</b>
+      · <span style="color:#7dd3c8">rapport complet via 🛰 MODE ANALYSE</span>`;
     const HYPO = {
       'Éducation': 'ouvrir une médiathèque/annexe scolaire ou renforcer le périscolaire',
       'Santé': 'maison de santé pluridisciplinaire, permanences de spécialistes',
@@ -425,6 +498,7 @@ export function initIntelTwin(viewer) {
         </div>
       </div>`;
     document.body.appendChild(modal);
+    rendreDeplacable(modal.querySelector('.boite'), modal.querySelector('.tete'));
     modal.querySelector('.x').addEventListener('click', () => modal.remove());
     modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
     modal.querySelector('.v-allo').addEventListener('click', () => {
@@ -454,6 +528,96 @@ export function initIntelTwin(viewer) {
   }
   root.querySelector('.analyse-terr').addEventListener('click', ouvrirRapport);
 
+  // ═══════════ DANGERS · EAU · AIR · RÉSEAUX (gratuit, sans clé) ═══════════
+  const CARDINAUX16 = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSO', 'SO', 'OSO', 'O', 'ONO', 'NO', 'NNO'];
+  async function ouvrirDangers() {
+    if (!derniere) { await analyser(); if (!derniere) return; }
+    const { commune, lat, lon } = derniere;
+    const modal = document.createElement('div');
+    modal.className = 'wti-modal';
+    modal.innerHTML = `
+      <div class="boite wti-glass">
+        <div class="tete"><span class="ic">⚠</span><span class="nm">DANGERS & RÉSEAUX — ${(commune?.nom || 'ZONE').toUpperCase()}</span>
+          <button class="x" type="button">✕</button></div>
+        <div class="defile">
+          <div class="sect">🌬 AIR / VENT — impact réel</div><div class="z-air">Mesure en cours…</div>
+          <div class="sect">🌊 MER / LITTORAL</div><div class="z-mer">Analyse…</div>
+          <div class="sect">⛽ SITES À RISQUE (rayon 3 km) — heat map sur la carte</div><div class="z-sites">Scan OSM…</div>
+          <div class="sect">💧 QUALITÉ DE L'EAU POTABLE (Hub'Eau officiel)</div><div class="z-eau">Interrogation…</div>
+          <div class="sect">⚡ ÉLECTRICITÉ</div><div class="z-elec">Postes électriques localisés sur la carte (⚡).
+          L'état ON/OFF par quartier en temps réel n'est pas public en gratuit — Enedis publie
+          les coupures sur son site et des statistiques en open data.</div>
+          <div class="vues"><button class="d-eff" type="button">🗑 EFFACER LA COUCHE DANGERS</button></div>
+          <div class="note">Sources : OSM (sites), Open-Meteo (vent), Hub'Eau (eau potable, ministère). Heuristiques indicatives — en cas de risque réel : vigilance Météo-France & consignes préfecture.</div>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+    rendreDeplacable(modal.querySelector('.boite'), modal.querySelector('.tete'));
+    modal.querySelector('.x').addEventListener('click', () => modal.remove());
+    modal.querySelector('.d-eff').addEventListener('click', () => dangersDs.entities.removeAll());
+
+    // vent (Open-Meteo)
+    fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat.toFixed(3)}&longitude=${lon.toFixed(3)}&current=wind_speed_10m,wind_direction_10m,wind_gusts_10m,temperature_2m`)
+      .then((r) => r.json()).then((d) => {
+        const c = d?.current; if (!c) throw new Error();
+        const dir = CARDINAUX16[Math.round((c.wind_direction_10m || 0) / 22.5) % 16];
+        const impact = c.wind_gusts_10m > 90 ? '🔴 TEMPÊTE : danger généralisé, chantiers à l\u2019arrêt'
+          : c.wind_gusts_10m > 72 ? '🟠 grutage INTERDIT (>72 km/h), vigilance toitures/échafaudages'
+            : c.wind_gusts_10m > 50 ? '🟡 prudence levage & filets, poussières' : '🟢 impact faible sur activités et habitants';
+        modal.querySelector('.z-air').innerHTML = `Vent <b>${Math.round(c.wind_speed_10m)} km/h</b> venant du <b>${dir}</b>,
+          rafales <b>${Math.round(c.wind_gusts_10m)} km/h</b> · ${Math.round(c.temperature_2m)}°C<br>${impact}`;
+      }).catch(() => { modal.querySelector('.z-air').textContent = 'Mesure vent indisponible.'; });
+
+    // sites à risque + littoral + postes élec (OSM, une requête) → heat map
+    overpass(`(
+      node(around:3000,${lat},${lon})[amenity=fuel];
+      node(around:3000,${lat},${lon})[man_made=storage_tank];way(around:3000,${lat},${lon})[man_made=storage_tank];
+      way(around:3000,${lat},${lon})[landuse=industrial];
+      node(around:3000,${lat},${lon})[power=substation];way(around:3000,${lat},${lon})[power=substation];
+      way(around:2500,${lat},${lon})[natural=coastline];
+    );out center 120;`).then((els) => {
+      dangersDs.entities.removeAll();
+      let nFuel = 0; let nTank = 0; let nInd = 0; let nElec = 0; let mer = false;
+      const lignes = [];
+      for (const e of els) {
+        const t = e.tags || {};
+        const la = e.lat ?? e.center?.lat; const lo = e.lon ?? e.center?.lon;
+        if (t.natural === 'coastline') { mer = true; continue; }
+        if (!Number.isFinite(la)) continue;
+        let coul = '#f07a6a'; let rayon = 120; let ic = '⛽';
+        if (t.amenity === 'fuel') { nFuel += 1; }
+        else if (t.man_made === 'storage_tank') { nTank += 1; rayon = 300; ic = '🛢'; }
+        else if (t.landuse === 'industrial') { nInd += 1; rayon = 250; coul = '#f0a63c'; ic = '🏭'; }
+        else if (t.power === 'substation') { nElec += 1; rayon = 60; coul = '#e8c04a'; ic = '⚡'; }
+        dangersDs.entities.add({
+          position: Cesium.Cartesian3.fromDegrees(lo, la),
+          ellipse: { semiMajorAxis: rayon, semiMinorAxis: rayon, material: Cesium.Color.fromCssColorString(coul).withAlpha(0.16), outline: true, outlineColor: Cesium.Color.fromCssColorString(coul).withAlpha(0.5), heightReference: Cesium.HeightReference.CLAMP_TO_GROUND },
+          label: { text: ic, font: '16px sans-serif', disableDepthTestDistance: Infinity, heightReference: Cesium.HeightReference.CLAMP_TO_GROUND },
+        });
+        if (lignes.length < 10 && t.name) lignes.push(`${ic} ${t.name}`);
+      }
+      modal.querySelector('.z-sites').innerHTML = `${nFuel} station(s)-service · ${nTank} citerne(s)/réservoir(s) ·
+        ${nInd} zone(s) industrielle(s) · ${nElec} poste(s) électrique(s) — cercles = périmètre indicatif de risque
+        (explosion/incendie).${lignes.length ? `<br>${lignes.join(' · ')}` : ''}`;
+      modal.querySelector('.z-mer').innerHTML = mer
+        ? '🌊 Littoral à moins de 2,5 km : risque tempête/submersion marine par vent fort d\u2019onshore, surveiller vigilance vagues-submersion.'
+        : 'Pas de littoral détecté à proximité immédiate.';
+    }).catch(() => { modal.querySelector('.z-sites').textContent = 'Scan OSM indisponible (réessaie).'; });
+
+    // eau potable (Hub'Eau — ministère, sans clé)
+    if (commune?.code) {
+      fetch(`https://hubeau.eaufrance.fr/api/v1/qualite_eau_potable/resultats_dis?code_commune=${commune.code}&size=6`)
+        .then((r) => r.json()).then((d) => {
+          const res = d?.data || [];
+          modal.querySelector('.z-eau').innerHTML = res.length ? res.slice(0, 5).map((m) =>
+            `· ${m.libelle_parametre || m.code_parametre} : <b>${m.resultat_alphanumerique || m.resultat_numerique || '—'} ${m.libelle_unite || ''}</b>
+             ${m.conclusion_conformite_prelevement ? `<small style="color:${/conforme/i.test(m.conclusion_conformite_prelevement) && !/non/i.test(m.conclusion_conformite_prelevement) ? '#43d17a' : '#f07a6a'}">(${m.conclusion_conformite_prelevement.slice(0, 60)})</small>` : ''}`).join('<br>')
+            : 'Pas de prélèvement récent publié pour cette commune.';
+        }).catch(() => { modal.querySelector('.z-eau').textContent = 'Hub\u2019Eau indisponible.'; });
+    } else modal.querySelector('.z-eau').textContent = 'Commune non identifiée — relance ⟳ ANALYSER.';
+  }
+  root.querySelector('.dangers').addEventListener('click', ouvrirDangers);
+
   // ═══════════ ANALYSE PRINCIPALE ═══════════
   let analyseEnCours = false;
   async function analyser() {
@@ -466,7 +630,7 @@ export function initIntelTwin(viewer) {
       const lat = Cesium.Math.toDegrees(c.latitude);
       const lon = Cesium.Math.toDegrees(c.longitude);
       const [commune, elements] = await Promise.all([
-        fetch(`https://geo.api.gouv.fr/communes?lat=${lat}&lon=${lon}&fields=nom,population,codesPostaux`).then((r) => r.json()).then((d) => d?.[0]).catch(() => null),
+        fetch(`https://geo.api.gouv.fr/communes?lat=${lat}&lon=${lon}&fields=nom,population,codesPostaux,code`).then((r) => r.json()).then((d) => d?.[0]).catch(() => null),
         overpass(`(
           node(around:1200,${lat},${lon})[amenity~"school|college|kindergarten|university"];
           node(around:1200,${lat},${lon})[amenity~"hospital|pharmacy|doctors|clinic"];
@@ -525,6 +689,18 @@ export function initIntelTwin(viewer) {
       ]);
       rendreMatrice(root.querySelector('.matrice'), [listes.vert.length, listes.commerces.length, listes.ecoles.length, listes.sante.length, listes.services.length]);
       if (heatActif) { heatActif = false; basculerHeat(); }
+      // 📰 flux ville façon Bloomberg (GDELT, gratuit) + étiquette d'impact heuristique
+      fetch(`https://api.gdeltproject.org/api/v2/doc/doc?query=${encodeURIComponent(`"${commune?.nom || ''}" sourcelang:fra`)}&mode=artlist&maxrecords=6&timespan=3m&format=json`)
+        .then((r) => r.json()).then((g) => {
+          const arts = g?.articles || [];
+          const etiq = (t) => (/ouvertur|inaugur|créat|nouveau|nouvelle/i.test(t) ? ' <b style="color:#43d17a">▲ activité+</b>'
+            : /ferme|liquidat|incend|accident|inond/i.test(t) ? ' <b style="color:#f07a6a">▼ risque</b>'
+              : /budget|subvention|investis/i.test(t) ? ' <b style="color:#e8c04a">€ budget</b>' : '');
+          root.querySelector('.news').innerHTML = arts.length ? arts.map((a) =>
+            `<div style="margin:3px 0">▸ <a href="${a.url}" target="_blank" rel="noopener" style="color:#7dd3c8;text-decoration:none">${(a.title || '').slice(0, 78)}</a>
+             <small style="color:rgba(232,234,237,0.4)">${(a.seendate || '').slice(6, 8)}/${(a.seendate || '').slice(4, 6)}</small>${etiq(a.title || '')}</div>`).join('')
+            : 'Aucune actu récente indexée pour cette commune (GDELT).';
+        }).catch(() => { root.querySelector('.news').textContent = 'Flux actus indisponible.'; });
       btn.textContent = '⟳ ANALYSER LA VUE';
     } catch { btn.textContent = '⚠ SOURCE SATURÉE — RÉESSAYER'; }
     analyseEnCours = false;
@@ -537,7 +713,7 @@ export function initIntelTwin(viewer) {
     const boussole = document.getElementById('wt-boussole');
     if (boussole) boussole.style.top = ouvert ? '62px' : '10px';
     if (ouvert && !dejaAnalyse) { dejaAnalyse = true; analyser(); }
-    if (!ouvert) fermerDrill();
+    if (!ouvert) { fermerDrill(); elemsDs.entities.removeAll(); }
   }).observe(root, { attributes: true, attributeFilter: ['class'] });
 
   return { analyser, ouvrirRapport };
