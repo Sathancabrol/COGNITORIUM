@@ -27,6 +27,9 @@ import { initChatConsole } from './chatConsole.js';
 import { initNearbyPlaces } from './nearbyPlaces.js';
 import { initFicheLieu } from './ficheLieu.js';
 import { initVisualFilters } from './visualFilters.js';
+import { initOsmBuildings3D } from './osmBuildings3D.js';
+import { initChantier } from './chantier.js';
+import { initFrenchHud } from './frenchHud.js';
 import { initPaywallGate } from './paywallGate.js';
 import { MapStackController } from './mapStackController.js';
 import { initAnnotations } from './annotations/index.js';
@@ -373,11 +376,15 @@ async function init() {
       });
       const autour = initNearbyPlaces(viewer);
       const filtres = initVisualFilters();
+      const bati = initOsmBuildings3D(viewer);
+      const chantier = initChantier(viewer);
       window.__godsEyeView.dock = initMobiDock({
         panneauxAncres: [
           { id: 'chat', icone: '💬', libelle: 'CHAT', titre: 'CHAT — CONSOLE DE COMMANDES', element: chat.element, cote: 'gauche', surOuverture: chat.focus },
           { id: 'autour', icone: '📍', libelle: 'AUTOUR', titre: 'AUTOUR DE MOI', element: autour.element, cote: 'droite' },
           { id: 'filtres', icone: '🎨', libelle: 'FILTRES', titre: 'FILTRES DE VUE', element: filtres.element, cote: 'droite' },
+          { id: 'bati', icone: '🏙', libelle: 'BÂTI 3D', titre: 'BÂTIMENTS 3D (OSM, GRATUIT)', element: bati.element, cote: 'gauche' },
+          { id: 'chantier', icone: '🏗', libelle: 'CHANTIER', titre: 'MODE CHANTIER 4D (v0)', element: chantier.element, cote: 'gauche' },
         ],
         panneauxExistants: [
           { icone: '🗼', libelle: 'FRANCE', cibleId: 'wt-panel' },
@@ -393,6 +400,10 @@ async function init() {
     try {
       window.__godsEyeView.fiche = initFicheLieu(viewer);
     } catch (e) { console.error('[watchtower] fiche lieu:', e); }
+    // HUD en français (traduction au vol des libellés d'origine, gratuit).
+    try {
+      window.__godsEyeView.hudFr = initFrenchHud();
+    } catch (e) { console.error('[watchtower] hud fr:', e); }
     // Mode gratuit : un clic sur une option payante ouvre le dialogue
     // d'activation (explication + OBTENIR MA CLÉ + collage de la clé).
     try {

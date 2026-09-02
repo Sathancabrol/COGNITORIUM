@@ -183,6 +183,7 @@ export function initFicheLieu(viewer) {
 
   function fermer() {
     arreterOrbite();
+    quitterInterieur();
     panneau?.remove(); panneau = null;
     if (marqueur) { viewer.entities.remove(marqueur); marqueur = null; }
   }
@@ -261,11 +262,12 @@ export function initFicheLieu(viewer) {
       <div class="visite">
         <button class="v-btn orbite">🚁 ORBITE DRONE</button>
         <button class="v-btn scene">🎬 SCÈNE SUIVANTE</button>
+        <button class="v-btn interieur">🏠 INTÉRIEUR</button>
         <button class="v-btn stop">⏹ STOP</button>
       </div>
-      <div class="note3d">VISITE 3D : orbite/scènes autour du bâtiment. En mode payant (Google 3D),
-      le bâtiment apparaît en 3D photoréaliste. Visite INTÉRIEURE : nécessite les plans du
-      bâtiment (feuille de route — voir docs/SOURCES-FR.md).</div>`;
+      <div class="note3d">VISITE 3D : orbite/scènes autour du bâtiment, ou visite INTÉRIEURE
+      schématique (volume reconstruit depuis l'emprise OSM/cadastre + hauteur estimée —
+      ZQSD pour se déplacer). En mode payant (Google 3D), l'extérieur est photoréaliste.</div>`;
 
     panneau.querySelector('.fermer').addEventListener('click', fermer);
 
@@ -320,11 +322,118 @@ export function initFicheLieu(viewer) {
       );
     });
     panneau.querySelector('.stop').addEventListener('click', arreterOrbite);
+    panneau.querySelector('.interieur').addEventListener('click', () => visiteInterieure(lon, lat));
+  }
+
+  // ── VISITE INTÉRIEURE schématique (version gratuite) ──────────────────────
+  // Le « plan » est l'emprise au sol du bâtiment (OSM/cadastre) ; la hauteur
+  // vient des tags OSM sinon est estimée. On reconstruit un volume translucide
+  // et on place la caméra DEDANS, pilotable comme un drone (ZQSD + flèches).
+  let interieur = null;
+
+  function quitterInterieur() {
+    if (!interieur) return;
+    window.clearInterval(interieur.timer);
+    window.removeEventListener('keydown', interieur.down, true);
+    window.removeEventListener('keyup', interieur.up, true);
+    interieur.barre.remove();
+    for (const e of interieur.entites) viewer.entities.remove(e);
+    viewer.scene.screenSpaceCameraController.enableInputs = true;
+    const { lon, lat } = interieur;
+    interieur = null;
+    viewer.camera.flyToBoundingSphere(
+      new Cesium.BoundingSphere(centre3D(lon, lat), 60),
+      { offset: new Cesium.HeadingPitchRange(0, Cesium.Math.toRadians(-30), 220), duration: 1.4 },
+    );
+  }
+
+  async function visiteInterieure(lon, lat) {
+    arreterOrbite();
+    quitterInterieur();
+    const note = panneau?.querySelector('.note3d');
+    if (note) note.textContent = '🔍 Recherche de l\u2019emprise du bâtiment (OSM)…';
+    let bat = null;
+    try {
+      const els = await overpass(`way(around:45,${lat},${lon})[building];out geom tags 1;`);
+      bat = els.find((e) => Array.isArray(e.geometry) && e.geometry.length > 2) || null;
+    } catch { bat = null; }
+    if (!bat) {
+      if (note) note.textContent = '⚠ Aucune emprise de bâtiment référencée ici (OSM) — impossible de reconstruire le volume. Essaie de cliquer plus près du bâtiment.';
+      return;
+    }
+    const plat = [];
+    let cx = 0; let cy = 0;
+    for (const g of bat.geometry) { plat.push(g.lon, g.lat); cx += g.lon; cy += g.lat; }
+    cx /= bat.geometry.length; cy /= bat.geometry.length;
+    const tags = bat.tags || {};
+    const h = parseFloat(tags.height) || (parseFloat(tags['building:levels']) || 0) * 3.2 || 7;
+    const sol = viewer.scene.globe.getHeight(Cesium.Cartographic.fromDegrees(cx, cy)) || 0;
+
+    // volume translucide : murs (extrusion) + arêtes
+    const entites = [];
+    entites.push(viewer.entities.add({
+      polygon: {
+        hierarchy: Cesium.Cartesian3.fromDegreesArray(plat),
+        material: Cesium.Color.CYAN.withAlpha(0.14),
+        height: 0, heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+        extrudedHeight: h, extrudedHeightReference: Cesium.HeightReference.RELATIVE_TO_GROUND,
+        outline: true, outlineColor: Cesium.Color.CYAN.withAlpha(0.85),
+      },
+    }));
+
+    // caméra à hauteur d'homme au centre du bâtiment
+    viewer.scene.screenSpaceCameraController.enableInputs = false;
+    viewer.camera.setView({
+      destination: Cesium.Cartesian3.fromDegrees(cx, cy, sol + 1.7),
+      orientation: { heading: 0, pitch: 0, roll: 0 },
+    });
+
+    // pilotage drone : ZQSD/WASD déplacer · flèches regarder · R/F monter/descendre
+    const touches = new Set();
+    const down = (e) => {
+      if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyR', 'KeyF', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
+        touches.add(e.code); e.preventDefault(); e.stopPropagation();
+      }
+      if (e.code === 'Escape') quitterInterieur();
+    };
+    const up = (e) => touches.delete(e.code);
+    window.addEventListener('keydown', down, true);
+    window.addEventListener('keyup', up, true);
+    const timer = window.setInterval(() => {
+      const v = 0.14; const rot = 0.028;
+      if (touches.has('KeyW')) viewer.camera.moveForward(v);
+      if (touches.has('KeyS')) viewer.camera.moveBackward(v);
+      if (touches.has('KeyA')) viewer.camera.moveLeft(v);
+      if (touches.has('KeyD')) viewer.camera.moveRight(v);
+      if (touches.has('KeyR')) viewer.camera.moveUp(v);
+      if (touches.has('KeyF')) viewer.camera.moveDown(v);
+      const cam = viewer.camera;
+      let cap = cam.heading; let tang = cam.pitch; let bouge = false;
+      if (touches.has('ArrowLeft')) { cap -= rot; bouge = true; }
+      if (touches.has('ArrowRight')) { cap += rot; bouge = true; }
+      if (touches.has('ArrowUp')) { tang = Math.min(tang + rot, 1.4); bouge = true; }
+      if (touches.has('ArrowDown')) { tang = Math.max(tang - rot, -1.4); bouge = true; }
+      if (bouge) cam.setView({ destination: cam.position.clone(), orientation: { heading: cap, pitch: tang, roll: 0 } });
+    }, 33);
+
+    const barre = document.createElement('div');
+    barre.style.cssText = 'position:fixed;bottom:160px;left:50%;transform:translateX(-50%);z-index:2000;'
+      + 'background:rgba(8,12,20,0.92);border:1px solid #00d4ff;border-radius:10px;padding:8px 14px;'
+      + 'font-family:var(--font-mono,monospace);font-size:9px;letter-spacing:1px;color:#e8eaed;display:flex;gap:12px;align-items:center;';
+    barre.innerHTML = `<span>🏠 INTÉRIEUR (schématique · ${tags.name || 'bâtiment'} · ~${Math.round(h)} m)
+      — <b style="color:#00d4ff">ZQSD</b> déplacer · <b style="color:#00d4ff">FLÈCHES</b> regarder · <b style="color:#00d4ff">R/F</b> monter/descendre</span>
+      <button style="cursor:pointer;background:rgba(240,90,90,0.12);border:1px solid #f08a8a;color:#f08a8a;border-radius:7px;padding:5px 10px;font-family:inherit;font-size:9px;font-weight:700">QUITTER</button>`;
+    barre.querySelector('button').addEventListener('click', quitterInterieur);
+    document.body.appendChild(barre);
+
+    interieur = { entites, timer, down, up, barre, lon, lat };
+    if (note) note.textContent = '🏠 Visite intérieure active — volume reconstruit depuis l\u2019emprise réelle du bâtiment. QUITTER ou ÉCHAP pour sortir.';
   }
 
   // ── clic gauche sur le globe → fiche ──
   const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
   handler.setInputAction((click) => {
+    if (window.__wtDessin || interieur) return; // dessin de zone chantier ou visite en cours
     let cart = null;
     try {
       if (viewer.scene.pickPositionSupported) cart = viewer.scene.pickPosition(click.position);

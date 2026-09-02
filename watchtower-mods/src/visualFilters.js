@@ -67,6 +67,47 @@ export function initVisualFilters() {
   note.textContent = 'Filtres GPU appliqués au rendu — cumulables avec tous les fonds de carte et les visual presets d\u2019origine (barre VISUEL).';
   el.appendChild(note);
 
+  // ── DENSITÉ DE L'INTERFACE (boutons, comme demandé) ──
+  const CIBLES_DENSITE = ['command-dock', 'wt-dock', 'wt-panel', 'intel-hud', 'pp-toggles', 'param-slider-panel'];
+  const DENSITES = [
+    { id: 'compact', label: 'COMPACT', zoom: 0.85 },
+    { id: 'normal', label: 'NORMAL', zoom: 1 },
+    { id: 'large', label: 'LARGE', zoom: 1.18 },
+  ];
+  const titreDens = document.createElement('div');
+  titreDens.style.cssText = 'color:#00d4ff;letter-spacing:2px;font-size:8px;font-weight:700;margin-top:8px';
+  titreDens.textContent = 'DENSITÉ INTERFACE';
+  el.appendChild(titreDens);
+  const rangDens = document.createElement('div');
+  rangDens.style.cssText = 'display:flex;gap:5px';
+  el.appendChild(rangDens);
+
+  function appliquerDensite(id) {
+    const d = DENSITES.find((x) => x.id === id) || DENSITES[1];
+    for (const cid of CIBLES_DENSITE) {
+      const c = document.getElementById(cid);
+      if (c) c.style.zoom = d.zoom === 1 ? '' : String(d.zoom);
+    }
+    try { window.localStorage.setItem('watchtower.densite.v1', d.id); } catch { /* plein */ }
+    for (const b of rangDens.querySelectorAll('.f-btn')) b.classList.toggle('actif', b.dataset.id === d.id);
+  }
+  for (const d of DENSITES) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'f-btn';
+    b.style.flex = '1';
+    b.dataset.id = d.id;
+    b.textContent = d.label;
+    b.addEventListener('click', () => appliquerDensite(d.id));
+    rangDens.appendChild(b);
+  }
+  // restaure après que tous les panneaux existent
+  window.setTimeout(() => {
+    let d = 'normal';
+    try { d = window.localStorage.getItem('watchtower.densite.v1') || 'normal'; } catch { /* défaut */ }
+    appliquerDensite(d);
+  }, 1200);
+
   appliquer(actif); // restaure le choix mémorisé
 
   return { element: el, appliquer };
