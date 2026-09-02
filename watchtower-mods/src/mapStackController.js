@@ -43,19 +43,23 @@ export const MAP_STACKS = [
 
 const DEFAULT_OSM_CREDIT = '© OpenStreetMap contributors © CARTO';
 
-// WATCHTOWER FIX — the public tile.openstreetmap.org servers now BLOCK this
-// app ("Access blocked — not following the tile usage policy", osm.wiki/Blocked):
-// OSM's volunteer-run servers are not meant to back popular third-party apps,
-// and they block by app, not by user. The road basemap therefore comes from
-// CARTO's free raster basemaps (same OpenStreetMap data, a CDN built for app
-// traffic). Attribution: OSM contributors + CARTO, both carried by the credit
-// above. https://github.com/CartoDB/basemap-styles
+// WATCHTOWER — road basemap. tile.openstreetmap.org blocks this app outright
+// ("Access blocked — tile usage policy", osm.wiki/Blocked), and CARTO's
+// keyless raster tiles watermark "carto.com/basemaps — API key required" on
+// apps they have not authorized. Esri's World Street Map answers keyless the
+// same way the World Imagery stack already shipped here does, with the same
+// on-screen "Powered by Esri" attribution — so it is the primary road map,
+// and CARTO stays only as a last-resort backup if Esri is unreachable.
+const ESRI_STREET_MAP_URL =
+  'https://services.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer';
+const ESRI_STREET_CREDIT =
+  'Powered by Esri — Sources: Esri, HERE, Garmin, © OpenStreetMap contributors, and the GIS user community';
 const CARTO_VOYAGER_URL =
   'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png';
 const CARTO_SUBDOMAINS = Object.freeze(['a', 'b', 'c', 'd']);
 const CARTO_MAX_LEVEL = 19;
 
-/** Build the OSM-style road basemap provider (CARTO Voyager raster tiles). */
+/** Last-resort road basemap (CARTO raster tiles — may carry a watermark). */
 function createOsmStyleProvider() {
   return new Cesium.UrlTemplateImageryProvider({
     url: CARTO_VOYAGER_URL,
@@ -63,6 +67,19 @@ function createOsmStyleProvider() {
     maximumLevel: CARTO_MAX_LEVEL,
     credit: DEFAULT_OSM_CREDIT,
   });
+}
+
+/** Primary road basemap: Esri World Street Map (keyless, no watermark). */
+async function createStreetMapProvider() {
+  try {
+    return await Cesium.ArcGisMapServerImageryProvider.fromUrl(ESRI_STREET_MAP_URL, {
+      credit: ESRI_STREET_CREDIT,
+      enablePickFeatures: false,
+    });
+  } catch (error) {
+    console.warn('[MapStack] Esri Street Map unavailable, using CARTO backup tiles:', error?.message || error);
+    return createOsmStyleProvider();
+  }
 }
 
 
@@ -321,7 +338,10 @@ export class MapStackController {
   _syncEsriAttribution(activeStackId) {
     const creditDisplay = this.viewer?.scene?.frameState?.creditDisplay;
     if (!creditDisplay) return;
-    const wanted = activeStackId === 'esri-imagery';
+    // Esri serves BOTH keyless stacks now: World Imagery (esri-imagery) and
+    // World Street Map (the 'osm' road stack) — the on-screen notice is
+    // required whenever either is the active basemap.
+    const wanted = activeStackId === 'esri-imagery' || activeStackId === 'osm';
     if (wanted === !!this._esriCreditShown) return;
     if (!this._esriCredit) {
       this._esriCredit = new Cesium.Credit(ESRI_ATTRIBUTION_HTML, true);
@@ -362,7 +382,7 @@ export class MapStackController {
         fallbackMessage = 'Esri Satellite is unavailable; using OSM';
       }
     } else if (stack.kind === 'osm') {
-      provider = createOsmStyleProvider();
+      provider = await createStreetMapProvider();
     } else {
       throw new Error(`Unsupported map stack: ${stack.id}`);
     }

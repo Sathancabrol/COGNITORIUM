@@ -22,19 +22,25 @@
 
 const STORAGE_KEY = 'watchtower.apiKeys.v1';
 
-/** Key registry — client-exposed credentials the browser can actually use. */
+/** Key registry — client-exposed credentials the browser can actually use.
+ *  Each entry carries a direct "get my key" URL: the user signs in with his
+ *  Google / Cesium account THERE, copies the key, and pastes it here once. */
 export const GATE_KEYS = Object.freeze([
   Object.freeze({
     id: 'GOOGLE_MAPS_API_KEY',
     label: 'GOOGLE MAPS API KEY',
     hint: 'Globe 3D photoréaliste (Google Photorealistic 3D Tiles)',
     placeholder: 'AIza…  (coller puis Entrée)',
+    getUrl: 'https://console.cloud.google.com/google/maps-apis/credentials',
+    getSteps: '1. Connexion avec ton compte Google · 2. Créer un projet si demandé · 3. « Create credentials » → « API key » · 4. Activer « Map Tiles API » · 5. Copier la clé et la coller ici.',
   }),
   Object.freeze({
     id: 'CESIUM_ION_TOKEN',
     label: 'CESIUM ION TOKEN',
     hint: 'Imagerie Bing + route de secours vers Google 3D (optionnel)',
     placeholder: 'eyJ…  (coller puis Entrée)',
+    getUrl: 'https://ion.cesium.com/tokens',
+    getSteps: '1. Compte Cesium ion gratuit · 2. Onglet « Access Tokens » · 3. Copier le token par défaut et le coller ici.',
   }),
 ]);
 
@@ -129,7 +135,28 @@ const GATE_CSS = `
   margin-bottom: 22px; line-height: 1.6;
 }
 .gate-key-row { margin-bottom: 18px; }
-.gate-key-label { font-size: 10px; letter-spacing: 2px; display: block; margin-bottom: 6px; }
+.gate-key-labelrow {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 6px; gap: 10px;
+}
+.gate-key-label { font-size: 10px; letter-spacing: 2px; display: block; }
+.gate-key-get {
+  font-size: 9px; letter-spacing: 1px; white-space: nowrap;
+  color: var(--accent, #00d4ff); text-decoration: none;
+  border: 1px solid rgba(0, 212, 255, 0.35); border-radius: 6px; padding: 4px 9px;
+  transition: background 150ms ease;
+}
+.gate-key-get:hover { background: var(--accent-dim, rgba(0,212,255,0.15)); }
+.gate-key-steps {
+  display: block; margin-top: 4px; font-size: 8.5px; line-height: 1.6;
+  color: var(--text-secondary, rgba(232,234,237,0.5)); letter-spacing: 0.4px;
+}
+.gate-badge {
+  display: inline-block; margin-left: 8px; padding: 2px 7px; border-radius: 5px;
+  font-size: 8px; letter-spacing: 1.5px; vertical-align: 2px;
+  background: rgba(67, 209, 122, 0.15); border: 1px solid rgba(67, 209, 122, 0.5);
+  color: #43d17a;
+}
 .gate-key-hint {
   font-size: 9px; color: var(--text-dim, rgba(232,234,237,0.3));
   letter-spacing: 0.5px; display: block; margin-top: 5px;
@@ -229,15 +256,15 @@ export function openStartGate() {
           ${header}
           <div class="gate-modes">
             <button type="button" class="gate-mode-btn" data-mode="free">
-              <span class="gate-mode-name">MODE GRATUIT</span>
-              <span class="gate-mode-desc">Aucune clé API. Démarrage immédiat sur le globe
-              satellite (Esri) avec carte routière CARTO/OSM. Recherche de lieux, voix (via le
-              navigateur), avions, séismes, satellites : tout a une version gratuite.</span>
+              <span class="gate-mode-name">MODE GRATUIT<span class="gate-badge">RECOMMANDÉ · ZÉRO CONFIG</span></span>
+              <span class="gate-mode-desc">Aucune clé API, aucun compte. Démarrage immédiat sur le globe
+              satellite (Esri) avec carte routière Esri/OSM. Recherche de lieux, voix (via le
+              navigateur), avions, séismes, satellites, feux : tout a une version gratuite.</span>
             </button>
             <button type="button" class="gate-mode-btn" data-mode="paid">
               <span class="gate-mode-name">MODE PAYANT</span>
-              <span class="gate-mode-desc">Entrer des clés API (Google Maps, Cesium ion) pour
-              débloquer le globe 3D photoréaliste et les couches premium.</span>
+              <span class="gate-mode-desc">Connecter tes services (Google, Cesium ion) pour le globe 3D
+              photoréaliste. Une clé à coller une seule fois — guidé pas à pas, mémorisé ensuite.</span>
             </button>
           </div>
         </div>
@@ -252,22 +279,29 @@ export function openStartGate() {
     const renderKeyEntry = () => {
       const rows = GATE_KEYS.map((key) => `
         <div class="gate-key-row" data-key-row="${key.id}">
-          <label class="gate-key-label" for="gate-input-${key.id}">${key.label}</label>
+          <div class="gate-key-labelrow">
+            <label class="gate-key-label" for="gate-input-${key.id}">${key.label}</label>
+            <a class="gate-key-get" href="${key.getUrl}" target="_blank" rel="noopener noreferrer">OBTENIR MA CLÉ ↗</a>
+          </div>
           <div class="gate-key-field">
             <input class="gate-key-input" id="gate-input-${key.id}" type="text"
               autocomplete="off" spellcheck="false" placeholder="${key.placeholder}" />
             <span class="gate-key-check" aria-hidden="true">✓</span>
           </div>
-          <span class="gate-key-hint">${key.hint}</span>
+          <span class="gate-key-hint">${key.hint}
+            <span class="gate-key-steps">${key.getSteps}</span>
+          </span>
         </div>
       `).join('');
 
       gate.innerHTML = `
         <div class="gate-panel gate-keys">
           <div style="text-align:center">${header}</div>
-          <h2 class="gate-keys-title">CLÉS API</h2>
-          <p class="gate-keys-sub">Coller une clé puis appuyer sur Entrée — un ✓ vert confirme
-          qu'elle est active. Les clés restent sur cette machine (localStorage).</p>
+          <h2 class="gate-keys-title">CONNECTER TES SERVICES</h2>
+          <p class="gate-keys-sub">Google et Cesium ne délivrent pas les cartes via un simple login :
+          il faut une clé de projet (gratuite à créer). Clique « OBTENIR MA CLÉ » — tu te connectes
+          là-bas avec ton compte Google ou Cesium — puis colle la clé ici et appuie sur Entrée :
+          un ✓ vert confirme. À faire UNE SEULE FOIS : les clés restent mémorisées sur cette machine.</p>
           ${rows}
           <button type="button" class="gate-enter-btn disarmed" data-gate-enter>ENTER</button>
           <p class="gate-enter-status" data-gate-status>AUCUNE CLÉ ACTIVE</p>
