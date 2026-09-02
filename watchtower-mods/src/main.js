@@ -22,7 +22,9 @@ import { initGevVoiceCommands } from './voice/gevRealtime.js';
 import { initFreeVoiceCommands } from './voice/freeVoice.js';
 import { initWatchtowerExtras } from './watchtowerExtras.js';
 import { initCompassTape } from './compassTape.js';
-import { initCleanUi } from './cleanUi.js';
+import { initMobiDock } from './mobiDock.js';
+import { initChatConsole } from './chatConsole.js';
+import { initNearbyPlaces } from './nearbyPlaces.js';
 import { initPaywallGate } from './paywallGate.js';
 import { MapStackController } from './mapStackController.js';
 import { initAnnotations } from './annotations/index.js';
@@ -355,14 +357,38 @@ async function init() {
 
     // WATCHTOWER — panneau français : INFO VUE exacte, météo Open-Meteo,
     // domicile, marque-pages, import KML/GeoJSON/GPX. Tout sans clé.
-    window.__godsEyeView.watchtower = initWatchtowerExtras({ viewer });
-    // Boussole FPS (ruban de cap gradué, clic = recadrage nord).
-    window.__godsEyeView.boussole = initCompassTape(viewer);
-    // UI épurée : les panneaux secondaires deviennent des icônes à développer.
-    window.__godsEyeView.uiEpuree = initCleanUi();
+    try {
+      window.__godsEyeView.watchtower = initWatchtowerExtras({ viewer });
+    } catch (e) { console.error('[watchtower] panneau FR:', e); }
+    // Boussole FPS (ruban de cap : glisser = tourner, double-clic = nord).
+    try {
+      window.__godsEyeView.boussole = initCompassTape(viewer);
+    } catch (e) { console.error('[watchtower] boussole:', e); }
+    // Dock MobiGlas : TOUTES les options en bas, par catégories de fonctions.
+    try {
+      const chat = initChatConsole(viewer, {
+        affichage: window.__godsEyeView.watchtower?.displayOptions,
+      });
+      const autour = initNearbyPlaces(viewer);
+      window.__godsEyeView.dock = initMobiDock({
+        panneauxAncres: [
+          { id: 'chat', icone: '💬', libelle: 'CHAT', titre: 'CHAT — CONSOLE DE COMMANDES', element: chat.element, cote: 'gauche', surOuverture: chat.focus },
+          { id: 'autour', icone: '📍', libelle: 'AUTOUR', titre: 'AUTOUR DE MOI', element: autour.element, cote: 'droite' },
+        ],
+        panneauxExistants: [
+          { icone: '🗼', libelle: 'FRANCE', cibleId: 'wt-panel' },
+          { icone: '🧠', libelle: 'INTEL', cibleId: 'intel-hud' },
+          { icone: '🎚', libelle: 'VISUEL+', cibleId: 'pp-toggles' },
+          { icone: '🎛', libelle: 'PARAMS', cibleId: 'param-slider-panel' },
+          { icone: '⚙', libelle: 'ACTIONS', cibleId: 'top-center-actions' },
+        ],
+      });
+    } catch (e) { console.error('[watchtower] dock:', e); }
     // Mode gratuit : un clic sur une option payante ouvre le dialogue
     // d'activation (explication + OBTENIR MA CLÉ + collage de la clé).
-    initPaywallGate({ mode: gate.mode });
+    try {
+      initPaywallGate({ mode: gate.mode });
+    } catch (e) { console.error('[watchtower] paywall:', e); }
 
   } catch (error) {
     console.error("God's Eye View initialization failed:", error);

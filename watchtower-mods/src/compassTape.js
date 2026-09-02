@@ -1,10 +1,11 @@
 /**
  * WATCHTOWER — boussole FPS en haut de l'écran.
  *
- * Un ruban de cap (heading tape) comme dans les jeux FPS : gradué en degrés,
- * lettres cardinales (N · NE · E · …), repère central fixe et lecture
- * numérique du cap. Suit la caméra Cesium en temps réel ; un clic recadre la
- * vue au nord.
+ * Ruban de cap (heading tape) comme dans les FPS : gradué en degrés, lettres
+ * cardinales, repère central fixe, lecture numérique du cap. Elle suit la
+ * caméra en temps réel ET elle est interactive :
+ *   — GLISSER le ruban gauche/droite = tourner la caméra (vue FPS) ;
+ *   — DOUBLE-CLIC = recadrage au nord.
  */
 
 import * as Cesium from 'cesium';
@@ -17,25 +18,27 @@ const CARDINAUX = { 0: 'N', 45: 'NE', 90: 'E', 135: 'SE', 180: 'S', 225: 'SO', 2
 
 const CSS = `
 #wt-boussole {
-  position: fixed; top: 6px; left: 50%; transform: translateX(-50%);
-  z-index: 860; width: ${LARGEUR}px; cursor: pointer; user-select: none;
+  position: fixed; top: 10px; left: 50%; transform: translateX(-50%);
+  z-index: 1200; width: ${LARGEUR}px; cursor: ew-resize; user-select: none;
+  touch-action: none;
   font-family: var(--font-mono, monospace); text-align: center;
 }
 #wt-boussole canvas {
   display: block; width: ${LARGEUR}px; height: ${HAUTEUR}px;
-  background: linear-gradient(180deg, rgba(10,10,15,0.72), rgba(10,10,15,0.5));
-  border: 1px solid var(--glass-border, rgba(255,255,255,0.1));
+  background: linear-gradient(180deg, rgba(10,10,15,0.78), rgba(10,10,15,0.55));
+  border: 1px solid rgba(0, 212, 255, 0.35);
   border-radius: 10px; backdrop-filter: blur(8px);
+  box-shadow: 0 0 18px rgba(0, 212, 255, 0.12);
 }
 #wt-boussole .cap {
   position: absolute; top: ${HAUTEUR + 3}px; left: 50%; transform: translateX(-50%);
   font-size: 11px; font-weight: 700; letter-spacing: 1px;
-  color: var(--accent, #00d4ff); text-shadow: 0 0 8px rgba(0,212,255,0.5);
-  background: rgba(10,10,15,0.6); border-radius: 6px; padding: 1px 8px;
+  color: #00d4ff; text-shadow: 0 0 8px rgba(0,212,255,0.5);
+  background: rgba(10,10,15,0.65); border-radius: 6px; padding: 1px 8px;
+  pointer-events: none;
 }
 `;
 
-/** Formate un cap en degrés 0-359 à 3 chiffres. */
 function fmtCap(deg) {
   return `${String(Math.round(((deg % 360) + 360) % 360) % 360).padStart(3, '0')}°`;
 }
@@ -48,13 +51,14 @@ export function initCompassTape(viewer) {
 
   const root = document.createElement('div');
   root.id = 'wt-boussole';
-  root.title = 'Cap caméra — clic pour recadrer au nord';
+  root.title = 'Cap caméra — glisser pour tourner · double-clic = nord';
   const canvas = document.createElement('canvas');
   const dpr = window.devicePixelRatio || 1;
-  canvas.width = LARGEUR * dpr;
-  canvas.height = HAUTEUR * dpr;
+  canvas.width = Math.round(LARGEUR * dpr);
+  canvas.height = Math.round(HAUTEUR * dpr);
   const lectureCap = document.createElement('div');
   lectureCap.className = 'cap';
+  lectureCap.textContent = '000°';
   root.appendChild(canvas);
   root.appendChild(lectureCap);
   document.body.appendChild(root);
@@ -70,7 +74,6 @@ export function initCompassTape(viewer) {
     const debut = capDeg - FENETRE_DEG / 2;
 
     ctx.textAlign = 'center';
-    // graduations tous les 5°, hautes tous les 15°
     const premier = Math.ceil(debut / 5) * 5;
     for (let d = premier; d <= debut + FENETRE_DEG; d += 5) {
       const x = (d - debut) * pxParDeg;
@@ -93,7 +96,7 @@ export function initCompassTape(viewer) {
         ctx.fillText(String(dn), x, 14);
       }
     }
-    // repère central (triangle fixe)
+    // repère central fixe
     ctx.fillStyle = '#00d4ff';
     ctx.beginPath();
     ctx.moveTo(LARGEUR / 2 - 6, 0);
@@ -104,17 +107,47 @@ export function initCompassTape(viewer) {
     lectureCap.textContent = fmtCap(capDeg);
   }
 
+  function capActuel() {
+    try { return Cesium.Math.toDegrees(viewer.camera.heading); } catch { return 0; }
+  }
+
   const maj = () => {
-    const cap = Cesium.Math.toDegrees(viewer.camera.heading);
+    const cap = capActuel();
     if (Math.abs(cap - dernierCap) < 0.05) return;
     dernierCap = cap;
     dessiner(cap);
   };
-  const remove = viewer.scene.postRender.addEventListener(maj);
-  dessiner(0);
 
-  root.addEventListener('click', () => {
-    // recadre au nord en gardant position et inclinaison
+  // Double filet : postRender + intervalle de secours (robuste quel que soit
+  // le pipeline de rendu actif).
+  let removePostRender = () => {};
+  try { removePostRender = viewer.scene.postRender.addEventListener(maj); } catch { /* fallback */ }
+  const timer = window.setInterval(maj, 300);
+  dessiner(capActuel());
+
+  // ── Interaction : glisser = tourner la caméra sur place (vue FPS) ──
+  let glisse = null;
+  root.addEventListener('pointerdown', (e) => {
+    glisse = { x0: e.clientX, cap0: viewer.camera.heading, bouge: false };
+    root.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
+  root.addEventListener('pointermove', (e) => {
+    if (!glisse) return;
+    const dx = e.clientX - glisse.x0;
+    if (Math.abs(dx) > 2) glisse.bouge = true;
+    const nouveauCap = glisse.cap0 + Cesium.Math.toRadians(dx * (FENETRE_DEG / LARGEUR));
+    viewer.camera.setView({
+      destination: viewer.camera.position.clone(),
+      orientation: { heading: nouveauCap, pitch: viewer.camera.pitch, roll: viewer.camera.roll },
+    });
+  });
+  const finGlisse = () => { glisse = null; };
+  root.addEventListener('pointerup', finGlisse);
+  root.addEventListener('pointercancel', finGlisse);
+
+  // Double-clic : recadrage au nord en douceur.
+  root.addEventListener('dblclick', () => {
     viewer.camera.flyTo({
       destination: viewer.camera.position.clone(),
       orientation: { heading: 0, pitch: viewer.camera.pitch, roll: 0 },
@@ -124,7 +157,8 @@ export function initCompassTape(viewer) {
 
   return {
     destroy() {
-      remove();
+      removePostRender();
+      window.clearInterval(timer);
       root.remove();
       style.remove();
     },

@@ -163,5 +163,12 @@ export function initDisplayOptions(viewer, container) {
   return {
     /** ids des calques actuellement actifs (pour tests/debug). */
     actifs: () => [...actifs.keys()],
+    /** Bascule un calque par id ('pluie', 'nuages', 'relief', 'labels', 'cadastre'). */
+    basculer: (id) => {
+      const def = DISPLAY_OVERLAYS.find((d) => d.id === id);
+      const btn = boutons.get(id);
+      if (def && btn) { toggle(def, btn); return true; }
+      return false;
+    },
   };
 }
