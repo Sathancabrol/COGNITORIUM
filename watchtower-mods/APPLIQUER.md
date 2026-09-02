@@ -13,7 +13,8 @@ Fork de `bilawalsidhu/gods-eye-view` (commit upstream `65bc522`) avec :
 ```bash
 git clone --depth 1 https://github.com/bilawalsidhu/gods-eye-view watchtower
 cd watchtower && rm -rf .git docs/media
-cp -r ../watchtower-mods/src ../watchtower-mods/vite.config.js ../watchtower-mods/README.md .
+cp -r ../watchtower-mods/src ../watchtower-mods/vite.config.js ../watchtower-mods/README.md ../watchtower-mods/index.html .
+cp ../watchtower-mods/SOURCES-FR.md docs/
 git init && git add -A && git commit -m "Watchtower"
 git remote add origin https://github.com/Sathancabrol/watchtower
 git push origin main
