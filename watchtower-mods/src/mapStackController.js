@@ -39,6 +39,28 @@ export const MAP_STACKS = [
     kind: 'osm',
     requiresIon: false,
   },
+  // WATCHTOWER — French national basemaps. The IGN opened all of its data in
+  // 2021 (Licence Ouverte); the Géoplateforme WMTS at data.geopf.fr answers
+  // WITHOUT any key: 20 cm aerial orthophotos and the monthly-updated Plan
+  // IGN. The best available imagery of France, free.
+  {
+    id: 'ign-ortho',
+    label: 'IGN Ortho (France)',
+    shortLabel: 'IGN',
+    kind: 'ign-wmts',
+    ignLayer: 'ORTHOIMAGERY.ORTHOPHOTOS',
+    ignFormat: 'image/jpeg',
+    requiresIon: false,
+  },
+  {
+    id: 'ign-plan',
+    label: 'Plan IGN (France)',
+    shortLabel: 'PLAN',
+    kind: 'ign-wmts',
+    ignLayer: 'GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2',
+    ignFormat: 'image/png',
+    requiresIon: false,
+  },
 ];
 
 const DEFAULT_OSM_CREDIT = '© OpenStreetMap contributors © CARTO';
@@ -383,6 +405,18 @@ export class MapStackController {
       }
     } else if (stack.kind === 'osm') {
       provider = await createStreetMapProvider();
+    } else if (stack.kind === 'ign-wmts') {
+      // IGN Géoplateforme — keyless WMTS (Licence Ouverte). KVP GetTile on
+      // the PM (WebMercator) tile matrix set.
+      provider = new Cesium.WebMapTileServiceImageryProvider({
+        url: 'https://data.geopf.fr/wmts',
+        layer: stack.ignLayer,
+        style: 'normal',
+        format: stack.ignFormat,
+        tileMatrixSetID: 'PM',
+        maximumLevel: 19,
+        credit: 'IGN — Géoplateforme (data.geopf.fr) · Licence Ouverte',
+      });
     } else {
       throw new Error(`Unsupported map stack: ${stack.id}`);
     }

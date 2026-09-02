@@ -20,6 +20,7 @@ import { registerDataCredits } from './data/dataCredits.js';
 import { SceneDirector } from './scenes/director.js';
 import { initGevVoiceCommands } from './voice/gevRealtime.js';
 import { initFreeVoiceCommands } from './voice/freeVoice.js';
+import { initWatchtowerExtras } from './watchtowerExtras.js';
 import { MapStackController } from './mapStackController.js';
 import { initAnnotations } from './annotations/index.js';
 import { initLogoGaze } from './logoGaze.js';
@@ -340,6 +341,10 @@ async function init() {
     window.__godsEyeView.voiceCommands = gate.mode === 'paid'
       ? initGevVoiceCommands({ viewer, styleManager, dataManager, sceneDirector, annotations })
       : initFreeVoiceCommands({ viewer, styleManager, dataManager, sceneDirector, annotations });
+
+    // WATCHTOWER — panneau français : INFO VUE exacte, météo Open-Meteo,
+    // domicile, marque-pages, import KML/GeoJSON/GPX. Tout sans clé.
+    window.__godsEyeView.watchtower = initWatchtowerExtras({ viewer });
 
   } catch (error) {
     console.error("God's Eye View initialization failed:", error);
