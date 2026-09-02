@@ -1,59 +1,56 @@
 /**
- * WATCHTOWER — MODE INTEL « JUMEAU NUMÉRIQUE » (remplace le HUD intel d'origine).
+ * WATCHTOWER — MODE INTEL « JUMEAU NUMÉRIQUE » v2.
  *
- * Reproduit la présentation de la maquette de référence :
- *   — bandeau supérieur de KPI : POPULATION · CAPITAL HUMAIN · BONHEUR ·
- *     ÉCONOMIE (étoiles) · RÉSILIENCE · ÉDUCATION · INNOVATION ;
- *   — panneau gauche « CIVILISATION TERRITORIALE » : catégories avec niveaux ;
- *   — panneau droit « CONTEXT PANEL » : population, activité économique,
- *     compétences clés, histogramme, matrice causale.
- *
- * Les indices sont CALCULÉS EN DIRECT à partir de données ouvertes gratuites :
- * population réelle (geo.api.gouv.fr) et densités d'équipements OpenStreetMap
- * (écoles, santé, commerces, services publics, espaces verts) autour du centre
- * de la vue. Sans clé.
+ * v1 : bandeau KPI + CIVILISATION TERRITORIALE + CONTEXT PANEL (données
+ * réelles gratuites : geo.gouv.fr + OpenStreetMap).
+ * v2 :
+ *  — chaque KPI / catégorie est CLIQUABLE → arborescence de l'indicateur
+ *    (sous-indicateurs → éléments réels trouvés) + fiche descriptive, et
+ *    l'icône du bandeau passe en 🔎 pendant l'inspection ;
+ *  — panneau droit : onglet PROFIL = carte d'identité cognitive T0 de
+ *    l'utilisateur (identité, budget, trajet quotidien, projets, CV,
+ *    métriques cognitives situé/incarné/énaction) éditable et mémorisée ;
+ *  — MODE ANALYSE : rapport d'analyste territorial (situation, besoins,
+ *    contraintes, problèmes, solutions en cours via BOAMP marchés publics,
+ *    solutions hypothétiques) + vues ALLO / EGO / HEATZONES sur la carte.
+ * Tout gratuit, sans clé. Les indices sont des heuristiques sur données
+ * ouvertes, pas une IA.
  */
 
 import * as Cesium from 'cesium';
 
+const PROFIL_KEY = 'watchtower.profil.v1';
+
 const CSS = `
 #wt-intel { position: fixed; inset: 0; z-index: 920; pointer-events: none; font-family: var(--font-mono, monospace); color: #e8eaed; }
 #wt-intel > * { pointer-events: auto; }
-.wti-glass {
-  background: linear-gradient(180deg, rgba(14,20,28,0.92), rgba(10,14,22,0.88));
-  border: 1px solid rgba(120, 200, 190, 0.22); border-radius: 14px;
-  backdrop-filter: blur(10px); box-shadow: 0 6px 24px rgba(0,0,0,0.4);
-}
-/* ── bandeau KPI ── */
-#wti-haut {
-  position: absolute; top: 0; left: 0; right: 0; height: 56px;
-  display: flex; align-items: stretch; gap: 0; padding: 6px 12px;
-  background: linear-gradient(180deg, rgba(8,12,18,0.95), rgba(8,12,18,0.82));
-  border-bottom: 1px solid rgba(120,200,190,0.2);
-}
-#wti-haut .marque { display: flex; align-items: center; gap: 9px; padding-right: 16px; min-width: 220px; }
+.wti-glass { background: linear-gradient(180deg, rgba(14,20,28,0.92), rgba(10,14,22,0.88)); border: 1px solid rgba(120,200,190,0.22); border-radius: 14px; backdrop-filter: blur(10px); box-shadow: 0 6px 24px rgba(0,0,0,0.4); }
+#wti-haut { position: absolute; top: 0; left: 0; right: 0; height: 56px; display: flex; align-items: stretch; padding: 6px 12px; background: linear-gradient(180deg, rgba(8,12,18,0.95), rgba(8,12,18,0.82)); border-bottom: 1px solid rgba(120,200,190,0.2); }
+#wti-haut .marque { display: flex; align-items: center; gap: 9px; padding-right: 16px; min-width: 210px; }
 #wti-haut .marque .cerveau { width: 34px; height: 34px; border-radius: 50%; background: rgba(120,200,190,0.12); border: 1px solid rgba(120,200,190,0.4); display: flex; align-items: center; justify-content: center; font-size: 16px; }
 #wti-haut .marque .t1 { font-size: 12px; font-weight: 800; letter-spacing: 1px; }
 #wti-haut .marque .t2 { font-size: 8px; color: rgba(232,234,237,0.5); letter-spacing: 1px; }
 #wti-haut .kpis { flex: 1; display: flex; align-items: stretch; justify-content: space-evenly; gap: 4px; }
-.wti-kpi { display: flex; flex-direction: column; justify-content: center; padding: 2px 12px; border-left: 1px solid rgba(255,255,255,0.07); min-width: 96px; }
-.wti-kpi .k { font-size: 8px; letter-spacing: 1px; color: rgba(232,234,237,0.6); display: flex; gap: 5px; align-items: center; }
-.wti-kpi .v { font-size: 15px; font-weight: 800; display: flex; gap: 6px; align-items: baseline; }
-.wti-kpi .v .fleche { font-size: 11px; }
+.wti-kpi { cursor: pointer; display: flex; flex-direction: column; justify-content: center; padding: 2px 12px; border-left: 1px solid rgba(255,255,255,0.07); min-width: 92px; background: none; border-top: none; border-right: none; border-bottom: none; color: inherit; font-family: inherit; text-align: left; }
+.wti-kpi:hover { background: rgba(120,200,190,0.07); }
+.wti-kpi.sel { background: rgba(120,200,190,0.14); box-shadow: inset 0 -2px 0 #7dd3c8; }
+.wti-kpi .k { font-size: 8px; letter-spacing: 1px; color: rgba(232,234,237,0.6); display: flex; gap: 5px; }
+.wti-kpi .v { font-size: 14px; font-weight: 800; display: flex; gap: 6px; align-items: baseline; }
 .wti-kpi .barre { height: 3px; border-radius: 2px; background: rgba(255,255,255,0.09); margin-top: 3px; overflow: hidden; }
 .wti-kpi .barre i { display: block; height: 100%; border-radius: 2px; }
 .haut { color: #43d17a; } .plat { color: #e8c04a; } .bas { color: #f07a6a; }
-/* ── panneau gauche ── */
 #wti-gauche { position: absolute; top: 66px; left: 12px; width: 240px; padding: 12px; }
 #wti-gauche .titre { font-size: 9px; letter-spacing: 3px; color: #7dd3c8; margin-bottom: 10px; }
-.wti-cat { border: 1px solid rgba(120,200,190,0.2); border-radius: 11px; padding: 8px 10px; margin-bottom: 8px; background: rgba(255,255,255,0.025); }
+.wti-cat { cursor: pointer; width: 100%; text-align: left; color: inherit; font-family: inherit; border: 1px solid rgba(120,200,190,0.2); border-radius: 11px; padding: 8px 10px; margin-bottom: 8px; background: rgba(255,255,255,0.025); }
+.wti-cat:hover { border-color: #7dd3c8; }
 .wti-cat .lg { display: flex; gap: 7px; align-items: center; font-size: 10.5px; font-weight: 700; }
-.wti-cat .lg .ic { font-size: 13px; }
-.wti-cat .niv { display: flex; gap: 7px; align-items: center; margin-top: 6px; font-size: 8px; color: rgba(232,234,237,0.55); letter-spacing: 1px; }
+.wti-cat .niv { display: flex; gap: 7px; align-items: center; margin-top: 6px; font-size: 8px; color: rgba(232,234,237,0.55); }
 .wti-cat .niv .barre { flex: 1; height: 5px; border-radius: 3px; background: rgba(255,255,255,0.09); overflow: hidden; }
 .wti-cat .niv .barre i { display: block; height: 100%; border-radius: 3px; background: linear-gradient(90deg, #37b7ab, #7de8b0); }
-/* ── panneau droit ── */
-#wti-droit { position: absolute; top: 66px; right: 12px; width: 264px; padding: 12px; max-height: calc(100vh - 200px); overflow-y: auto; }
+#wti-droit { position: absolute; top: 66px; right: 12px; width: 272px; padding: 12px; max-height: calc(100vh - 200px); overflow-y: auto; }
+#wti-droit .ongles { display: flex; gap: 5px; margin-bottom: 8px; }
+#wti-droit .ong { flex: 1; cursor: pointer; padding: 6px; font-family: inherit; font-size: 8px; font-weight: 700; letter-spacing: 2px; border-radius: 7px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); color: rgba(232,234,237,0.7); }
+#wti-droit .ong.actif { background: rgba(120,200,190,0.14); border-color: #7dd3c8; color: #7dd3c8; }
 #wti-droit .titre { font-size: 9px; letter-spacing: 3px; color: #7dd3c8; margin-bottom: 8px; display: flex; justify-content: space-between; }
 #wti-droit .pop { font-size: 20px; font-weight: 800; }
 #wti-droit .sous { font-size: 8px; letter-spacing: 1.5px; color: rgba(232,234,237,0.55); margin: 10px 0 4px; }
@@ -63,14 +60,28 @@ const CSS = `
 #wti-droit .skill { display: flex; align-items: center; gap: 7px; font-size: 9px; margin: 3px 0; }
 #wti-droit .skill .barre { flex: 1; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.09); overflow: hidden; }
 #wti-droit .skill .barre i { display: block; height: 100%; }
-#wti-analyser {
-  position: absolute; top: 66px; left: 50%; transform: translateX(-50%);
-  cursor: pointer; padding: 8px 16px; font-family: inherit; font-size: 9px;
-  font-weight: 700; letter-spacing: 2px; color: #7dd3c8; border-radius: 9px;
-  background: rgba(14,20,28,0.9); border: 1px solid rgba(120,200,190,0.4);
-}
+#wti-droit input, #wti-droit textarea { width: 100%; box-sizing: border-box; padding: 6px 8px; background: rgba(0,0,0,0.4); color: inherit; border: 1px solid rgba(255,255,255,0.12); border-radius: 7px; font-family: inherit; font-size: 9.5px; outline: none; margin-bottom: 4px; }
+#wti-droit input:focus, #wti-droit textarea:focus { border-color: #7dd3c8; }
+#wti-droit .btn { cursor: pointer; width: 100%; padding: 8px; font-family: inherit; font-size: 9px; font-weight: 700; letter-spacing: 2px; border-radius: 8px; background: rgba(120,200,190,0.12); border: 1px solid #7dd3c8; color: #7dd3c8; margin-top: 4px; }
+#wti-analyser { position: absolute; top: 66px; left: 50%; transform: translateX(-50%); cursor: pointer; padding: 8px 16px; font-family: inherit; font-size: 9px; font-weight: 700; letter-spacing: 2px; color: #7dd3c8; border-radius: 9px; background: rgba(14,20,28,0.9); border: 1px solid rgba(120,200,190,0.4); }
 #wti-analyser:hover { background: rgba(120,200,190,0.12); }
 #wt-intel .note { font-size: 7.5px; color: rgba(232,234,237,0.35); line-height: 1.5; margin-top: 8px; }
+/* drill-down + rapport : fenêtres focus au-dessus de la carte */
+.wti-modal { position: fixed; inset: 0; z-index: 2600; display: flex; align-items: center; justify-content: center; background: rgba(4,7,12,0.6); pointer-events: auto; }
+.wti-modal .boite { width: min(560px, 94vw); max-height: 80vh; display: flex; flex-direction: column; padding: 16px 18px; }
+.wti-modal .tete { display: flex; align-items: center; gap: 9px; margin-bottom: 10px; }
+.wti-modal .tete .ic { font-size: 20px; }
+.wti-modal .tete .nm { font-size: 13px; font-weight: 800; letter-spacing: 1px; flex: 1; }
+.wti-modal .tete .x { cursor: pointer; background: none; border: none; color: rgba(232,234,237,0.6); font-size: 14px; font-family: inherit; }
+.wti-modal .defile { overflow-y: auto; font-size: 10px; line-height: 1.7; }
+.wti-modal details { border: 1px solid rgba(120,200,190,0.18); border-radius: 9px; padding: 6px 10px; margin-bottom: 6px; background: rgba(255,255,255,0.02); }
+.wti-modal summary { cursor: pointer; font-weight: 700; font-size: 10px; letter-spacing: 1px; color: #7dd3c8; }
+.wti-modal .item { cursor: pointer; display: flex; gap: 7px; width: 100%; text-align: left; color: inherit; font-family: inherit; font-size: 9.5px; padding: 4px 7px; margin: 2px 0; border-radius: 6px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); }
+.wti-modal .item:hover { border-color: #7dd3c8; }
+.wti-modal .fiche { margin-top: 8px; padding: 9px 11px; border-radius: 9px; border: 1px solid rgba(120,200,190,0.35); background: rgba(120,200,190,0.06); font-size: 9.5px; line-height: 1.7; }
+.wti-modal .sect { margin: 10px 0 4px; font-size: 9px; letter-spacing: 2px; color: #7dd3c8; font-weight: 700; }
+.wti-modal .vues { display: flex; gap: 6px; margin-top: 10px; }
+.wti-modal .vues button { flex: 1; cursor: pointer; padding: 8px; font-family: inherit; font-size: 8.5px; font-weight: 700; letter-spacing: 1px; border-radius: 8px; background: rgba(120,200,190,0.1); border: 1px solid rgba(120,200,190,0.4); color: #7dd3c8; }
 `;
 
 async function overpass(req) {
@@ -84,17 +95,30 @@ async function overpass(req) {
 const fleche = (v) => (v >= 60 ? ['↑', 'haut'] : v >= 40 ? ['→', 'plat'] : ['↓', 'bas']);
 const cbar = (v) => (v >= 60 ? '#43d17a' : v >= 40 ? '#e8c04a' : '#f07a6a');
 
+export function lireProfil() {
+  try { return JSON.parse(window.localStorage.getItem(PROFIL_KEY)) || {}; } catch { return {}; }
+}
+
 export function initIntelTwin(viewer) {
   const style = document.createElement('style');
   style.textContent = CSS;
   document.head.appendChild(style);
-
-  // remplace TOTALEMENT le HUD intel d'origine
   document.getElementById('intel-hud')?.style.setProperty('display', 'none', 'important');
+
+  const heatDs = new Cesium.CustomDataSource('wt-intel-heat');
+  viewer.dataSources.add(heatDs);
+
+  // identifiants de session façon carte cognitive
+  let traceId;
+  try {
+    traceId = window.localStorage.getItem('watchtower.traceId') || `${Math.random().toString(16).slice(2, 10)}-${Math.random().toString(16).slice(2, 6)}`;
+    window.localStorage.setItem('watchtower.traceId', traceId);
+  } catch { traceId = 'local'; }
+  const visitId = `${Date.now().toString(16)}-${Math.random().toString(16).slice(2, 6)}`;
 
   const root = document.createElement('div');
   root.id = 'wt-intel';
-  root.classList.add('wt-dock-cache'); // replié par défaut, ouvert via le dock
+  root.classList.add('wt-dock-cache');
   root.innerHTML = `
     <div id="wti-haut">
       <div class="marque">
@@ -107,56 +131,125 @@ export function initIntelTwin(viewer) {
     <div id="wti-gauche" class="wti-glass">
       <div class="titre">CIVILISATION TERRITORIALE</div>
       <div class="cats"></div>
-      <div class="note">Indices calculés en direct depuis les données ouvertes
-      (population INSEE via geo.gouv.fr · densités d'équipements OpenStreetMap,
-      rayon 1,2 km). Gratuit, sans clé.</div>
+      <button class="btn analyse-terr" style="cursor:pointer;width:100%;padding:8px;font-family:inherit;font-size:9px;font-weight:700;letter-spacing:2px;border-radius:8px;background:rgba(120,200,190,0.12);border:1px solid #7dd3c8;color:#7dd3c8">🛰 MODE ANALYSE TERRITORIALE</button>
+      <div class="note">Indices calculés depuis les données ouvertes (INSEE via geo.gouv.fr ·
+      OpenStreetMap, rayon 1,2 km). Heuristiques transparentes, pas une IA. Gratuit, sans clé.</div>
     </div>
     <div id="wti-droit" class="wti-glass">
-      <div class="titre"><span>CONTEXT PANEL</span><span style="color:#43d17a">TRENDS ↗</span></div>
-      <div class="sous">POPULATION</div>
-      <div class="pop">—</div>
-      <div class="sous">ACTIVITÉ ÉCONOMIQUE</div>
-      <div class="jauge eco"><i style="background:linear-gradient(90deg,#37b7ab,#7de8b0)"></i></div>
-      <div class="sous">COMPÉTENCES CLÉS</div>
-      <div class="skills"></div>
-      <div class="sous">ÉQUIPEMENTS PAR CATÉGORIE</div>
-      <canvas class="histo" width="240" height="90"></canvas>
-      <div class="sous">CAUSAL MATRIX</div>
-      <canvas class="matrice" width="240" height="110"></canvas>
+      <div class="ongles">
+        <button class="ong actif" data-v="contexte" type="button">CONTEXTE</button>
+        <button class="ong" data-v="profil" type="button">PROFIL</button>
+      </div>
+      <div class="vue-contexte">
+        <div class="titre"><span>CONTEXT PANEL</span><span style="color:#43d17a">TRENDS ↗</span></div>
+        <div class="sous">POPULATION</div><div class="pop">—</div>
+        <div class="sous">ACTIVITÉ ÉCONOMIQUE</div>
+        <div class="jauge eco"><i style="background:linear-gradient(90deg,#37b7ab,#7de8b0)"></i></div>
+        <div class="sous">COMPÉTENCES CLÉS</div><div class="skills"></div>
+        <div class="sous">ÉQUIPEMENTS PAR CATÉGORIE</div><canvas class="histo" width="240" height="90"></canvas>
+        <div class="sous">CAUSAL MATRIX</div><canvas class="matrice" width="240" height="110"></canvas>
+      </div>
+      <div class="vue-profil" style="display:none"></div>
     </div>`;
   document.body.appendChild(root);
 
   const zoneKpis = root.querySelector('.kpis');
   const zoneCats = root.querySelector('.cats');
+  let derniere = null; // dernière analyse {commune, lat, lon, comptes, listes, indices}
 
+  // ═══════════ PROFIL — carte d'identité cognitive T0 ═══════════
+  const vueProfil = root.querySelector('.vue-profil');
+  function rendreProfil() {
+    const p = lireProfil();
+    const rempli = ['nom', 'role', 'budget', 'capacite', 'trajetDom', 'trajetTrav', 'projets', 'cv']
+      .map((k) => (p[k] ? 1 : 0)).reduce((a, b) => a + b, 0);
+    const situe = p.trajetDom ? 90 : 25;
+    const incarne = Math.min(100, 20 + rempli * 10);
+    const enaction = Math.min(100, (String(p.projets || '').split('\n').filter(Boolean).length) * 30 + 10);
+    const simulation = p.budget ? 80 : 20;
+    vueProfil.innerHTML = `
+      <div class="titre"><span>CARTE D'IDENTITÉ COGNITIVE · T0</span></div>
+      <div style="font-size:7.5px;color:rgba(232,234,237,0.4);margin-bottom:6px">Trace ID: ${traceId} · Visit ID: ${visitId}</div>
+      <div class="sous">IDENTITÉ</div>
+      <input class="p-nom" placeholder="Nom / pseudo" value="${p.nom || ''}" />
+      <input class="p-role" placeholder="Métier / rôle (ex : conducteur de travaux)" value="${p.role || ''}" />
+      <div class="sous">BUDGET & CAPACITÉ</div>
+      <input class="p-budget" type="number" placeholder="Budget mensuel (€)" value="${p.budget || ''}" />
+      <input class="p-capacite" type="number" placeholder="Capacité chantiers simultanés (ex : 3)" value="${p.capacite || ''}" />
+      <div class="sous">TRAJET QUOTIDIEN</div>
+      <input class="p-dom" placeholder="Départ (ex : Frontignan)" value="${p.trajetDom || ''}" />
+      <input class="p-trav" placeholder="Arrivée (ex : Sète, zone portuaire)" value="${p.trajetTrav || ''}" />
+      <div class="sous">PROJETS EN COURS (1 par ligne)</div>
+      <textarea class="p-projets" rows="3">${p.projets || ''}</textarea>
+      <div class="sous">CV / COMPÉTENCES</div>
+      <textarea class="p-cv" rows="3">${p.cv || ''}</textarea>
+      <div class="sous">HUD COGNITIF — SITUÉ · INCARNÉ · ÉNACTION</div>
+      ${[['Cognition située (ancrage GPS/territoire)', situe, '#37b7ab'],
+        ['Cognition incarnée (profil complété)', incarne, '#c084fc'],
+        ['Énaction (projets actifs)', enaction, '#e8c04a'],
+        ['Simulation (budget & finance)', simulation, '#43d17a']]
+        .map(([n, v, c]) => `<div class="skill"><span style="min-width:150px">${n}</span>
+          <div class="barre"><i style="width:${v}%;background:${c}"></i></div><b>${v}%</b></div>`).join('')}
+      <button class="btn p-sauver" type="button">💾 ENREGISTRER · RAFRAÎCHIR T0</button>
+      <div class="note">Profil stocké UNIQUEMENT en local sur ton appareil. Il alimente le mode
+      CHANTIER (capacité vs marchés) et les métriques cognitives (processus situé/incarné/énactif :
+      plus le jumeau te connaît, plus les simulations sont ancrées dans ton réel).</div>`;
+    vueProfil.querySelector('.p-sauver').addEventListener('click', () => {
+      const np = {
+        nom: vueProfil.querySelector('.p-nom').value.trim(),
+        role: vueProfil.querySelector('.p-role').value.trim(),
+        budget: vueProfil.querySelector('.p-budget').value,
+        capacite: vueProfil.querySelector('.p-capacite').value,
+        trajetDom: vueProfil.querySelector('.p-dom').value.trim(),
+        trajetTrav: vueProfil.querySelector('.p-trav').value.trim(),
+        projets: vueProfil.querySelector('.p-projets').value,
+        cv: vueProfil.querySelector('.p-cv').value,
+      };
+      try { window.localStorage.setItem(PROFIL_KEY, JSON.stringify(np)); } catch { /* plein */ }
+      rendreProfil();
+    });
+  }
+  rendreProfil();
+  for (const o of root.querySelectorAll('.ong')) {
+    o.addEventListener('click', () => {
+      root.querySelectorAll('.ong').forEach((b) => b.classList.remove('actif'));
+      o.classList.add('actif');
+      root.querySelector('.vue-contexte').style.display = o.dataset.v === 'contexte' ? '' : 'none';
+      vueProfil.style.display = o.dataset.v === 'profil' ? '' : 'none';
+      if (o.dataset.v === 'profil') rendreProfil();
+    });
+  }
+
+  // ═══════════ rendu bandeau + catégories (cliquables) ═══════════
   function rendreKpis(kpis) {
     zoneKpis.innerHTML = '';
     for (const k of kpis) {
       const [f, cl] = k.etoiles ? ['→', 'plat'] : fleche(k.val);
-      const d = document.createElement('div');
+      const d = document.createElement('button');
+      d.type = 'button';
       d.className = 'wti-kpi';
-      d.innerHTML = `
-        <div class="k">${k.ic} ${k.nom}</div>
+      d.dataset.cat = k.cat || '';
+      d.innerHTML = `<div class="k"><span class="ic">${k.ic}</span> ${k.nom}</div>
         <div class="v">${k.etoiles ? '★'.repeat(k.etoiles) + '☆'.repeat(5 - k.etoiles) : k.texte || `${k.val}%`}
-          <span class="fleche ${cl}">${f}</span></div>
+        <span class="fleche ${cl}">${f}</span></div>
         <div class="barre"><i style="width:${k.etoiles ? k.etoiles * 20 : Math.min(100, k.val)}%;background:${cbar(k.etoiles ? k.etoiles * 20 : k.val)}"></i></div>`;
+      if (k.cat) d.addEventListener('click', () => ouvrirDrill(k.cat));
       zoneKpis.appendChild(d);
     }
   }
-
   function rendreCats(cats) {
     zoneCats.innerHTML = '';
     for (const c of cats) {
-      const d = document.createElement('div');
+      const d = document.createElement('button');
+      d.type = 'button';
       d.className = 'wti-cat';
-      d.innerHTML = `
-        <div class="lg"><span class="ic">${c.ic}</span>${c.nom}</div>
+      d.innerHTML = `<div class="lg"><span class="ic">${c.ic}</span>${c.nom}</div>
         <div class="niv">NIVEAU ${Math.max(1, Math.ceil(c.val / 25))}
-          <div class="barre"><i style="width:${Math.min(100, c.val)}%"></i></div></div>`;
+        <div class="barre"><i style="width:${Math.min(100, c.val)}%"></i></div></div>`;
+      d.addEventListener('click', () => ouvrirDrill(c.cat));
       zoneCats.appendChild(d);
     }
   }
-
   function rendreHisto(canvas, series) {
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -164,39 +257,204 @@ export function initIntelTwin(viewer) {
     const lb = canvas.width / series.length;
     series.forEach((s, i) => {
       const h = Math.max(3, (s.n / max) * 58);
-      ctx.fillStyle = s.c;
-      ctx.fillRect(i * lb + 8, 68 - h, lb - 16, h);
-      ctx.fillStyle = 'rgba(232,234,237,0.7)';
-      ctx.font = '9px monospace'; ctx.textAlign = 'center';
+      ctx.fillStyle = s.c; ctx.fillRect(i * lb + 8, 68 - h, lb - 16, h);
+      ctx.fillStyle = 'rgba(232,234,237,0.7)'; ctx.font = '9px monospace'; ctx.textAlign = 'center';
       ctx.fillText(String(s.n), i * lb + lb / 2, 66 - h);
       ctx.fillText(s.l, i * lb + lb / 2, 82);
     });
   }
-
   function rendreMatrice(canvas, scores) {
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     const noms = ['Écologie', 'Économie', 'Éducation', 'Santé', 'Services'];
     const cols = ['#43d17a', '#e8c04a', '#37b7ab', '#c084fc', '#f0a63c'];
     const g = noms.map((_, i) => ({ x: 78, y: 16 + i * 20 }));
-    const dte = noms.map((_, i) => ({ x: 190, y: 16 + i * 20 }));
+    const dr = noms.map((_, i) => ({ x: 190, y: 16 + i * 20 }));
     for (let i = 0; i < noms.length; i += 1) {
       for (let j = 0; j < noms.length; j += 1) {
-        if ((i + j + scores[i]) % 3 !== 0) continue;
+        if ((i + j + (scores[i] || 0)) % 3 !== 0) continue;
         ctx.strokeStyle = `${cols[i]}55`;
-        ctx.beginPath(); ctx.moveTo(g[i].x + 5, g[i].y); ctx.lineTo(dte[j].x - 5, dte[j].y); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(g[i].x + 5, g[i].y); ctx.lineTo(dr[j].x - 5, dr[j].y); ctx.stroke();
       }
     }
     noms.forEach((n, i) => {
       ctx.fillStyle = cols[i];
       ctx.beginPath(); ctx.arc(g[i].x, g[i].y, 4, 0, 7); ctx.fill();
-      ctx.beginPath(); ctx.arc(dte[i].x, dte[i].y, 4, 0, 7); ctx.fill();
-      ctx.font = '8px monospace'; ctx.textAlign = 'right';
-      ctx.fillStyle = 'rgba(232,234,237,0.75)';
+      ctx.beginPath(); ctx.arc(dr[i].x, dr[i].y, 4, 0, 7); ctx.fill();
+      ctx.font = '8px monospace'; ctx.textAlign = 'right'; ctx.fillStyle = 'rgba(232,234,237,0.75)';
       ctx.fillText(n, g[i].x - 9, g[i].y + 3);
     });
   }
 
+  // ═══════════ DRILL-DOWN : arborescence + fiche ═══════════
+  const DESCRIPTIONS = {
+    population: ['👥', 'Population', 'Nombre officiel d\u2019habitants de la commune (INSEE via geo.gouv.fr). Le niveau territorial est calculé sur une échelle logarithmique : un village de 500 hab. et une métropole n\u2019ont pas le même poids.'],
+    education: ['🎓', 'Éducation', 'Indice = densité d\u2019établissements d\u2019enseignement (écoles, collèges, lycées, universités) référencés dans OpenStreetMap à moins de 1,2 km du point analysé. Chaque établissement compte pour 12 points (plafond 100).'],
+    economie: ['💼', 'Économie & emplois', 'Indice = densité de commerces et activités (tag shop OSM) dans le rayon d\u2019analyse. 3 points par commerce, plafond 100. Les étoiles du bandeau = indice / 20.'],
+    sante: ['🏥', 'Santé', 'Indice = densité d\u2019équipements de santé (hôpitaux, pharmacies, médecins, cliniques) OSM. 8 points par équipement, plafond 100. Contribue au capital humain et au bonheur.'],
+    services: ['🏛', 'Services publics / Résilience', 'Indice = densité de services publics (mairie, police, pompiers, poste, bibliothèque, centre communautaire). 12 points par service, plafond 100.'],
+    bonheur: ['😊', 'Bonheur', 'Indice composite : base 38 + 5 points par espace vert/équipement de loisir + santé/5. Approximation heuristique du bien-être territorial (espaces verts + accès aux soins).'],
+    capital: ['🧠', 'Capital humain', 'Moyenne des indices Éducation et Santé : capacité du territoire à former et maintenir sa population en bonne santé.'],
+    innovation: ['🚀', 'Innovation', 'Dérivé : (Éducation + Économie) / 2,4 — un territoire éduqué et actif économiquement a plus de chances d\u2019innover. Indicateur prospectif.'],
+    resilience: ['🛡', 'Résilience', 'Capacité de réponse du territoire = indice Services publics (secours, administration, lien social).'],
+  };
+  const CAT_LISTE = { education: 'ecoles', sante: 'sante', economie: 'commerces', services: 'services', bonheur: 'vert' };
+
+  let drill = null;
+  function fermerDrill() {
+    drill?.remove(); drill = null;
+    root.querySelectorAll('.wti-kpi').forEach((k) => {
+      k.classList.remove('sel');
+      const ic = k.querySelector('.ic');
+      if (ic && ic.dataset.orig) { ic.textContent = ic.dataset.orig; delete ic.dataset.orig; }
+    });
+  }
+  function ouvrirDrill(cat) {
+    fermerDrill();
+    if (!derniere) return;
+    const [ic, nom, desc] = DESCRIPTIONS[cat] || ['📌', cat, ''];
+    // bandeau : icône → 🔎 + surbrillance
+    root.querySelectorAll('.wti-kpi').forEach((k) => {
+      if (k.dataset.cat === cat) {
+        k.classList.add('sel');
+        const kic = k.querySelector('.ic');
+        if (kic) { kic.dataset.orig = kic.textContent; kic.textContent = '🔎'; }
+      }
+    });
+    const liste = derniere.listes[CAT_LISTE[cat]] || [];
+    const ind = derniere.indices;
+    const sousIndics = {
+      population: [['Habitants (INSEE)', (derniere.commune?.population || 0).toLocaleString('fr-FR')], ['Code postal', derniere.commune?.codesPostaux?.[0] || '—'], ['Niveau territorial', Math.max(1, Math.ceil((ind.pop || 0) / 25))]],
+      education: [['Établissements détectés', liste.length], ['Points/établissement', 12], ['Indice', `${ind.edu}%`]],
+      economie: [['Commerces détectés', liste.length], ['Points/commerce', 3], ['Indice', `${ind.eco}%`], ['Étoiles', Math.max(1, Math.min(5, Math.ceil(ind.eco / 20)))]],
+      sante: [['Équipements détectés', liste.length], ['Points/équipement', 8], ['Indice', `${ind.sante}%`]],
+      services: [['Services détectés', liste.length], ['Points/service', 12], ['Indice', `${ind.res}%`]],
+      bonheur: [['Espaces verts/loisirs', liste.length], ['Base', 38], ['Bonus santé', Math.round(ind.sante / 5)], ['Indice', `${ind.bonheur}%`]],
+      capital: [['Éducation', `${ind.edu}%`], ['Santé', `${ind.sante}%`], ['Capital humain', `${ind.capital}%`]],
+      innovation: [['Éducation', `${ind.edu}%`], ['Économie', `${ind.eco}%`], ['Innovation', `${ind.inno}%`]],
+      resilience: [['Services publics', `${ind.res}%`]],
+    }[cat] || [];
+
+    drill = document.createElement('div');
+    drill.className = 'wti-modal';
+    drill.innerHTML = `
+      <div class="boite wti-glass">
+        <div class="tete"><span class="ic">${ic}</span><span class="nm">${nom.toUpperCase()} — ARBORESCENCE</span>
+          <button class="x" type="button">✕</button></div>
+        <div class="defile">
+          <details open><summary>📐 SOUS-INDICATEURS & CALCUL</summary>
+            ${sousIndics.map(([k, v]) => `<div style="display:flex;justify-content:space-between;padding:3px 6px"><span style="color:rgba(232,234,237,0.6)">${k}</span><b>${v}</b></div>`).join('')}
+          </details>
+          ${liste.length ? `<details open><summary>📍 ÉLÉMENTS RÉELS DÉTECTÉS (${liste.length}) — clic = voir sur la carte</summary>
+            <div class="elems">${liste.map((e, i) => `<button class="item" data-i="${i}" type="button">📌 ${e.nom}</button>`).join('')}</details>` : ''}
+          <div class="fiche"><b>FICHE DESCRIPTIVE</b><br>${desc}<br>
+          <span style="color:rgba(232,234,237,0.5)">Zone analysée : ${derniere.commune?.nom || '—'} · rayon 1,2 km · ${new Date().toLocaleTimeString('fr-FR')}</span></div>
+        </div>
+      </div>`;
+    document.body.appendChild(drill);
+    drill.querySelector('.x').addEventListener('click', fermerDrill);
+    drill.addEventListener('click', (e) => { if (e.target === drill) fermerDrill(); });
+    drill.querySelectorAll('.item').forEach((b) => {
+      b.addEventListener('click', () => {
+        const e = liste[Number(b.dataset.i)];
+        if (e?.lat) {
+          viewer.camera.flyTo({ destination: Cesium.Cartesian3.fromDegrees(e.lon, e.lat, 500), duration: 2 });
+          fermerDrill();
+        }
+      });
+    });
+  }
+
+  // ═══════════ MODE ANALYSE TERRITORIALE ═══════════
+  let heatActif = false;
+  function basculerHeat() {
+    heatActif = !heatActif;
+    heatDs.entities.removeAll();
+    if (!heatActif || !derniere) return;
+    const COLS = { ecoles: '#37b7ab', sante: '#c084fc', commerces: '#e8c04a', services: '#f0a63c', vert: '#43d17a' };
+    for (const [k, col] of Object.entries(COLS)) {
+      for (const e of derniere.listes[k] || []) {
+        if (!e.lat) continue;
+        heatDs.entities.add({
+          position: Cesium.Cartesian3.fromDegrees(e.lon, e.lat),
+          point: { pixelSize: 16, color: Cesium.Color.fromCssColorString(col).withAlpha(0.45), heightReference: Cesium.HeightReference.CLAMP_TO_GROUND },
+        });
+      }
+    }
+  }
+  async function ouvrirRapport() {
+    if (!derniere) { await analyser(); if (!derniere) return; }
+    const { commune, indices: ind, lat, lon } = derniere;
+    const paires = [['Éducation', ind.edu], ['Santé', ind.sante], ['Économie', ind.eco], ['Services publics', ind.res], ['Bonheur', ind.bonheur]];
+    const faibles = paires.filter(([, v]) => v < 45).map(([n]) => n);
+    const forts = paires.filter(([, v]) => v >= 60).map(([n]) => n);
+    const HYPO = {
+      'Éducation': 'ouvrir une médiathèque/annexe scolaire ou renforcer le périscolaire',
+      'Santé': 'maison de santé pluridisciplinaire, permanences de spécialistes',
+      'Économie': 'pépinière de commerces, marché hebdomadaire, zone artisanale',
+      'Services publics': 'maison France Services, point poste, police municipale',
+      'Bonheur': 'parc urbain, végétalisation, équipements sportifs de proximité',
+    };
+    // solutions en cours : marchés publics BOAMP de la commune (gratuit, sans clé)
+    let boamp = '<i>Interrogation BOAMP…</i>';
+    const modal = document.createElement('div');
+    modal.className = 'wti-modal';
+    modal.innerHTML = `
+      <div class="boite wti-glass">
+        <div class="tete"><span class="ic">🛰</span><span class="nm">ANALYSE TERRITORIALE — ${(commune?.nom || 'ZONE').toUpperCase()}</span>
+          <button class="x" type="button">✕</button></div>
+        <div class="defile">
+          <div class="sect">1 · SITUATION</div>
+          ${paires.map(([n, v]) => `<div style="display:flex;gap:8px;align-items:center;padding:2px 0"><span style="min-width:110px">${n}</span>
+            <div style="flex:1;height:5px;border-radius:3px;background:rgba(255,255,255,0.09)"><i style="display:block;height:100%;border-radius:3px;width:${v}%;background:${cbar(v)}"></i></div><b>${v}%</b></div>`).join('')}
+          <div class="sect">2 · BESOINS PRIORITAIRES</div>
+          ${faibles.length ? faibles.map((f) => `⚠ <b>${f}</b> sous le seuil de 45 % — déficit d'équipements dans le rayon analysé.<br>`).join('') : '✅ Aucun indice sous le seuil critique.'}
+          <div class="sect">3 · CONTRAINTES & PROBLÈMES PERTINENTS</div>
+          ${commune ? `Commune de ${(commune.population || 0).toLocaleString('fr-FR')} hab. — les indices reflètent le rayon de 1,2 km, pas toute la commune : recentre la vue et relance l'analyse pour comparer les quartiers.` : ''}
+          ${forts.length ? `<br>Points d'appui : <b>${forts.join(', ')}</b>.` : ''}
+          <div class="sect">4 · SOLUTIONS EN COURS / À VENIR (MARCHÉS PUBLICS BOAMP)</div>
+          <div class="zone-boamp">${boamp}</div>
+          <div class="sect">5 · SOLUTIONS HYPOTHÉTIQUES (PROPOSITIONS)</div>
+          ${(faibles.length ? faibles : ['Bonheur']).map((f) => `💡 <b>${f}</b> : ${HYPO[f]}.<br>`).join('')}
+          <div class="vues">
+            <button class="v-allo" type="button">🗺 VUE ALLO (dessus)</button>
+            <button class="v-ego" type="button">👁 VUE EGO (immersion)</button>
+            <button class="v-heat" type="button">🔥 HEATZONES</button>
+          </div>
+          <div class="note">Rapport heuristique généré à partir de données ouvertes (OSM, INSEE, BOAMP). Gratuit, sans clé, pas d'IA.</div>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+    modal.querySelector('.x').addEventListener('click', () => modal.remove());
+    modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+    modal.querySelector('.v-allo').addEventListener('click', () => {
+      viewer.camera.flyTo({ destination: Cesium.Cartesian3.fromDegrees(lon, lat, 6000), orientation: { heading: 0, pitch: Cesium.Math.toRadians(-89), roll: 0 }, duration: 1.8 });
+    });
+    modal.querySelector('.v-ego').addEventListener('click', () => {
+      viewer.camera.flyTo({ destination: Cesium.Cartesian3.fromDegrees(lon, lat - 0.012, 350), orientation: { heading: 0, pitch: Cesium.Math.toRadians(-12), roll: 0 }, duration: 1.8 });
+    });
+    modal.querySelector('.v-heat').addEventListener('click', basculerHeat);
+    // BOAMP asynchrone
+    try {
+      const r = await fetch(`https://boamp-datadila.opendatasoft.com/api/records/1.0/search/?dataset=boamp&q=${encodeURIComponent(commune?.nom || '')}&rows=5&sort=dateparution`);
+      const d = await r.json();
+      const recs = d?.records || [];
+      const zb = modal.querySelector('.zone-boamp');
+      if (zb) {
+        zb.innerHTML = recs.length ? recs.map((rec) => {
+          const f = rec.fields || {};
+          const objet = f.objet || f.objet_complet || f.titulaire || 'Avis de marché';
+          return `📋 <b>${String(objet).slice(0, 110)}</b><br><span style="color:rgba(232,234,237,0.5)">${f.nomacheteur || f.acheteur || ''} · paru ${f.dateparution || '—'}</span><br>`;
+        }).join('') : 'Aucun marché public récent trouvé pour cette commune sur BOAMP.';
+      }
+    } catch {
+      const zb = modal.querySelector('.zone-boamp');
+      if (zb) zb.innerHTML = 'Source BOAMP injoignable pour le moment (réessaie).';
+    }
+  }
+  root.querySelector('.analyse-terr').addEventListener('click', ouvrirRapport);
+
+  // ═══════════ ANALYSE PRINCIPALE ═══════════
   let analyseEnCours = false;
   async function analyser() {
     if (analyseEnCours) return;
@@ -207,7 +465,6 @@ export function initIntelTwin(viewer) {
       const c = viewer.camera.positionCartographic;
       const lat = Cesium.Math.toDegrees(c.latitude);
       const lon = Cesium.Math.toDegrees(c.longitude);
-
       const [commune, elements] = await Promise.all([
         fetch(`https://geo.api.gouv.fr/communes?lat=${lat}&lon=${lon}&fields=nom,population,codesPostaux`).then((r) => r.json()).then((d) => d?.[0]).catch(() => null),
         overpass(`(
@@ -216,77 +473,72 @@ export function initIntelTwin(viewer) {
           node(around:1200,${lat},${lon})[shop];
           node(around:1200,${lat},${lon})[amenity~"townhall|police|fire_station|post_office|library|community_centre"];
           node(around:1200,${lat},${lon})[leisure~"park|garden|playground|sports_centre"];
-        );out tags 500;`).catch(() => []),
+        );out 500;`).catch(() => []),
       ]);
-
-      let ecoles = 0; let sante = 0; let commerces = 0; let services = 0; let vert = 0;
+      const listes = { ecoles: [], sante: [], commerces: [], services: [], vert: [] };
       for (const e of elements) {
         const t = e.tags || {};
-        if (/school|college|kindergarten|university/.test(t.amenity || '')) ecoles += 1;
-        else if (/hospital|pharmacy|doctors|clinic/.test(t.amenity || '')) sante += 1;
-        else if (t.shop) commerces += 1;
-        else if (t.amenity) services += 1;
-        else if (t.leisure) vert += 1;
+        const item = { nom: t.name || t.amenity || t.shop || t.leisure || 'sans nom', lat: e.lat, lon: e.lon };
+        if (/school|college|kindergarten|university/.test(t.amenity || '')) listes.ecoles.push(item);
+        else if (/hospital|pharmacy|doctors|clinic/.test(t.amenity || '')) listes.sante.push(item);
+        else if (t.shop) listes.commerces.push(item);
+        else if (t.amenity) listes.services.push(item);
+        else if (t.leisure) listes.vert.push(item);
       }
-
-      const iEdu = Math.min(100, ecoles * 12);
-      const iSante = Math.min(100, sante * 8);
-      const iEco = Math.min(100, commerces * 3);
-      const iRes = Math.min(100, services * 12);
+      const iEdu = Math.min(100, listes.ecoles.length * 12);
+      const iSante = Math.min(100, listes.sante.length * 8);
+      const iEco = Math.min(100, listes.commerces.length * 3);
+      const iRes = Math.min(100, listes.services.length * 12);
       const iInno = Math.min(100, Math.round((iEdu + iEco) / 2.4));
-      const iBonheur = Math.min(100, 38 + vert * 5 + Math.round(iSante / 5));
+      const iBonheur = Math.min(100, 38 + listes.vert.length * 5 + Math.round(iSante / 5));
       const iCapital = Math.round((iEdu + iSante) / 2);
+      const iPop = Math.min(100, Math.round(Math.log10(Math.max(10, commune?.population || 10)) * 20));
+      derniere = { commune, lat, lon, listes, indices: { edu: iEdu, sante: iSante, eco: iEco, res: iRes, inno: iInno, bonheur: iBonheur, capital: iCapital, pop: iPop } };
 
       root.querySelector('.marque .t1').textContent = `${(commune?.nom || 'ZONE').toUpperCase()} DIGITAL TWIN`;
       root.querySelector('.marque .t2').textContent = commune ? `Living Digital, France · ${commune.codesPostaux?.[0] || ''}` : 'Living Digital';
-      root.querySelector('.pop').innerHTML = commune
-        ? `${(commune.population || 0).toLocaleString('fr-FR')} <span class="haut" style="font-size:12px">↑</span>` : '—';
-
+      root.querySelector('.pop').innerHTML = commune ? `${(commune.population || 0).toLocaleString('fr-FR')} <span class="haut" style="font-size:12px">↑</span>` : '—';
       rendreKpis([
-        { ic: '👥', nom: 'Population', texte: commune ? (commune.population || 0).toLocaleString('fr-FR') : '—', val: 60 },
-        { ic: '🧠', nom: 'Capital humain', val: iCapital },
-        { ic: '😊', nom: 'Bonheur', val: iBonheur },
-        { ic: '💰', nom: 'Économie', etoiles: Math.max(1, Math.min(5, Math.ceil(iEco / 20))) },
-        { ic: '🛡', nom: 'Résilience', val: iRes },
-        { ic: '🎓', nom: 'Éducation', val: iEdu },
-        { ic: '🚀', nom: 'Innovation', val: iInno },
+        { ic: '👥', nom: 'Population', texte: commune ? (commune.population || 0).toLocaleString('fr-FR') : '—', val: iPop, cat: 'population' },
+        { ic: '🧠', nom: 'Capital humain', val: iCapital, cat: 'capital' },
+        { ic: '😊', nom: 'Bonheur', val: iBonheur, cat: 'bonheur' },
+        { ic: '💰', nom: 'Économie', etoiles: Math.max(1, Math.min(5, Math.ceil(iEco / 20))), cat: 'economie' },
+        { ic: '🛡', nom: 'Résilience', val: iRes, cat: 'resilience' },
+        { ic: '🎓', nom: 'Éducation', val: iEdu, cat: 'education' },
+        { ic: '🚀', nom: 'Innovation', val: iInno, cat: 'innovation' },
       ]);
       rendreCats([
-        { ic: '👥', nom: 'Population', val: Math.min(100, Math.round(Math.log10(Math.max(10, commune?.population || 10)) * 20)) },
-        { ic: '🎓', nom: 'Éducation', val: iEdu },
-        { ic: '💼', nom: 'Emplois & commerces', val: iEco },
-        { ic: '🏥', nom: 'Santé', val: iSante },
-        { ic: '🏛', nom: 'Services publics', val: iRes },
+        { ic: '👥', nom: 'Population', val: iPop, cat: 'population' },
+        { ic: '🎓', nom: 'Éducation', val: iEdu, cat: 'education' },
+        { ic: '💼', nom: 'Emplois & commerces', val: iEco, cat: 'economie' },
+        { ic: '🏥', nom: 'Santé', val: iSante, cat: 'sante' },
+        { ic: '🏛', nom: 'Services publics', val: iRes, cat: 'services' },
       ]);
-      const skills = [
+      root.querySelector('.skills').innerHTML = [
         ['Développement', iEco, '#37b7ab'], ['Compétences', iCapital, '#c084fc'], ['Innovation', iInno, '#e8c04a'],
-      ];
-      root.querySelector('.skills').innerHTML = skills.map(([n, v, col], i) =>
-        `<div class="skill"><span>${i + 1}. ${n}</span><div class="barre"><i style="width:${v}%;background:${col}"></i></div></div>`).join('');
+      ].map(([n, v, col], i) => `<div class="skill"><span>${i + 1}. ${n}</span><div class="barre"><i style="width:${v}%;background:${col}"></i></div></div>`).join('');
       root.querySelector('.jauge.eco i').style.width = `${iEco}%`;
       rendreHisto(root.querySelector('.histo'), [
-        { l: 'Écoles', n: ecoles, c: '#37b7ab' }, { l: 'Santé', n: sante, c: '#c084fc' },
-        { l: 'Commerce', n: commerces, c: '#e8c04a' }, { l: 'Services', n: services, c: '#f0a63c' },
-        { l: 'Vert', n: vert, c: '#43d17a' },
+        { l: 'Écoles', n: listes.ecoles.length, c: '#37b7ab' }, { l: 'Santé', n: listes.sante.length, c: '#c084fc' },
+        { l: 'Commerce', n: listes.commerces.length, c: '#e8c04a' }, { l: 'Services', n: listes.services.length, c: '#f0a63c' },
+        { l: 'Vert', n: listes.vert.length, c: '#43d17a' },
       ]);
-      rendreMatrice(root.querySelector('.matrice'), [vert, commerces, ecoles, sante, services]);
+      rendreMatrice(root.querySelector('.matrice'), [listes.vert.length, listes.commerces.length, listes.ecoles.length, listes.sante.length, listes.services.length]);
+      if (heatActif) { heatActif = false; basculerHeat(); }
       btn.textContent = '⟳ ANALYSER LA VUE';
-    } catch {
-      btn.textContent = '⚠ SOURCE SATURÉE — RÉESSAYER';
-    }
+    } catch { btn.textContent = '⚠ SOURCE SATURÉE — RÉESSAYER'; }
     analyseEnCours = false;
   }
-
   root.querySelector('#wti-analyser').addEventListener('click', analyser);
 
-  // à l'ouverture via le dock : lancer l'analyse + décaler la boussole sous le bandeau
   let dejaAnalyse = false;
   new MutationObserver(() => {
     const ouvert = !root.classList.contains('wt-dock-cache');
     const boussole = document.getElementById('wt-boussole');
     if (boussole) boussole.style.top = ouvert ? '62px' : '10px';
     if (ouvert && !dejaAnalyse) { dejaAnalyse = true; analyser(); }
+    if (!ouvert) fermerDrill();
   }).observe(root, { attributes: true, attributeFilter: ['class'] });
 
-  return { analyser };
+  return { analyser, ouvrirRapport };
 }
