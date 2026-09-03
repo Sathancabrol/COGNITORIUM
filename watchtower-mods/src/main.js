@@ -33,6 +33,9 @@ import { initFlightMode } from './flightMode.js';
 import { initIntelTwin } from './intelTwin.js';
 import { initFrenchHud } from './frenchHud.js';
 import { initPaywallGate } from './paywallGate.js';
+import { initPosteCommandement } from './posteCommandement.js';
+import { initMinimap } from './minimap.js';
+import { initCctvCam } from './cctvCam.js';
 import { MapStackController } from './mapStackController.js';
 import { initAnnotations } from './annotations/index.js';
 import { initLogoGaze } from './logoGaze.js';
@@ -291,6 +294,8 @@ async function init() {
         // keyless layers through it, and reaching for styleManager._dataManager
         // would make a private field part of this feature's contract.
         initFirstRunExperience({ styleManager, dataManager });
+        // POSTE DE COMMANDEMENT : lance la mission choisie au démarrage
+        window.__wtLancerMission?.();
       };
       loadingScreen.addEventListener('transitionend', revealFirstRun, { once: true });
       setTimeout(revealFirstRun, 900);
@@ -400,14 +405,22 @@ async function init() {
       // INTEL nouvelle génération : tableau de bord « jumeau numérique »
       // (remplace le HUD intel d'origine — créé AVANT le dock qui le bascule).
       window.__godsEyeView.intel = initIntelTwin(viewer);
+      // POSTE DE COMMANDEMENT : LIEUX · HISTO · FAVORIS + caméras gratuites
+      const cctv = initCctvCam(viewer);
+      const poste = initPosteCommandement(viewer);
+      window.__godsEyeView.poste = poste;
       window.__godsEyeView.dock = initMobiDock({
         panneauxAncres: [
           { id: 'chat', icone: '💬', libelle: 'CHAT', titre: 'CHAT — CONSOLE DE COMMANDES', element: chat.element, cote: 'gauche', surOuverture: chat.focus },
-          { id: 'autour', icone: '📍', libelle: 'AUTOUR', titre: 'AUTOUR DE MOI', element: autour.element, cote: 'droite' },
+          { id: 'moi', icone: '📍', libelle: 'MOI', titre: '📍 MA LOCALISATION — ME LOCALISER', element: autour.element, cote: 'droite', surOuverture: autour.focus },
           { id: 'filtres', icone: '🎨', libelle: 'FILTRES', titre: 'FILTRES DE VUE', element: filtres.element, cote: 'droite' },
-          { id: 'bati', icone: '🏙', libelle: 'BÂTI 3D', titre: 'BÂTIMENTS 3D (OSM, GRATUIT)', element: bati.element, cote: 'gauche' },
+          { id: 'bati', icone: '🏙', libelle: 'BÂTI 3D', titre: 'BÂTIMENTS 3D (OSM, GRATUIT, RAPIDE)', element: bati.element, cote: 'gauche' },
           { id: 'chantier', icone: '🏗', libelle: 'CHANTIER', titre: 'HUB CHANTIER — CONDUITE DE TRAVAUX', element: chantier.element, cote: 'gauche' },
-          { id: 'vol', icone: '✈', libelle: 'VOL', titre: 'MODE PILOTAGE — DRONE / AVION', element: initFlightMode(viewer).element, cote: 'droite' },
+          { id: 'vol', icone: '✈', libelle: 'VOL', titre: 'MODE PILOTAGE — DRONE / AVION (ZQSD + JOYSTICK)', element: initFlightMode(viewer).element, cote: 'droite' },
+          { id: 'lieux', icone: '🧭', libelle: 'LIEUX', titre: '🧭 LIEUX — RECHERCHE + MES LIEUX', element: poste.panneaux.lieux.element, cote: 'gauche' },
+          { id: 'histo', icone: '🏛', libelle: 'HISTO', titre: '🏛 ÉVÉNEMENTS HISTORIQUES DE LA COMMUNE', element: poste.panneaux.histo.element, cote: 'droite' },
+          { id: 'favoris', icone: '⭐', libelle: 'FAVORIS', titre: '⭐ FAVORIS — MES VUES + DOMICILE', element: poste.panneaux.favoris.element, cote: 'gauche' },
+          { id: 'cam', icone: '📷', libelle: 'CAM', titre: '📷 CAMÉRAS GRATUITES — TRAFFIC / VILLE', element: cctv.element, cote: 'droite' },
         ],
         panneauxExistants: [
           { iconeHtml: '<span class="wt-oeil">👁</span>', icone: '👁', libelle: 'HQ', cibleId: 'wt-panel', surClic: recentrerHQ },
@@ -417,6 +430,37 @@ async function init() {
           { icone: '⚙', libelle: 'ACTIONS', cibleId: 'top-center-actions' },
         ],
       });
+      poste.setDock(window.__godsEyeView.dock);
+      // 🏙 BÂTI 3D : clic sur un nom de repère → FICHE LIEU du bâtiment
+      bati.setSurFiche((lon, lat) => window.__godsEyeView.fiche?.ouvrir(lon, lat));
+      // « chaque bouton envoie vers sa fenêtre / fiche » — navigation globale
+      window.wtAller = {
+        pageChantier: (p) => {
+          window.__godsEyeView.dock?.ouvrir?.('chantier');
+          window.dispatchEvent(new CustomEvent('wt:chantier-page', { detail: p }));
+        },
+        chantier: (p) => { window.__godsEyeView.dock?.ouvrir?.('chantier'); window.dispatchEvent(new CustomEvent('wt:chantier-page', { detail: p })); },
+        intel: () => window.__godsEyeView.dock?.ouvrirExistant?.('wt-intel'),
+        bati: () => window.__godsEyeView.dock?.ouvrir?.('bati'),
+        fiche: (lon, lat) => window.__godsEyeView.fiche?.ouvrir(lon, lat),
+      };
+      // mission de démarrage (choisie à l'écran POSTE DE COMMANDEMENT)
+      const mission = gate.mission || 'explorer';
+      const lancerMission = () => {
+        try { poste.lancerMission(mission); } catch (e) { console.error('[watchtower] mission:', e); }
+      };
+      window.__wtLancerMission = lancerMission;
+      // dernière vue : sauvegarde auto → « ⏩ MA DERNIÈRE VUE » au démarrage suivant
+      window.setInterval(() => {
+        try {
+          const p = viewer.camera.position;
+          window.localStorage.setItem('watchtower.derniereVue.v1', JSON.stringify({
+            x: p.x, y: p.y, z: p.z,
+            heading: viewer.camera.heading, pitch: viewer.camera.pitch, roll: viewer.camera.roll,
+            t: Date.now(),
+          }));
+        } catch { /* stockage plein */ }
+      }, 20000);
     } catch (e) { console.error('[watchtower] dock:', e); }
     // FICHE LIEU : clic gauche sur la carte → dossier du point (Wikipédia,
     // photo, adresse, onglets politique/économie/citoyen, visite drone 3D).
@@ -438,6 +482,10 @@ async function init() {
     try {
       initPaywallGate({ mode: gate.mode });
     } catch (e) { console.error('[watchtower] paywall:', e); }
+    // MINICARTE en bas à gauche (suit la vue, anti-collision, repliable)
+    try {
+      initMinimap(viewer);
+    } catch (e) { console.error('[watchtower] minimap:', e); }
 
   } catch (error) {
     console.error("God's Eye View initialization failed:", error);

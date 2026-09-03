@@ -41,7 +41,9 @@ const CSS = `
 .wti-kpi .barre i { display: block; height: 100%; border-radius: 2px; }
 .haut { color: #43d17a; } .plat { color: #e8c04a; } .bas { color: #f07a6a; }
 #wti-gauche { position: absolute; top: 66px; left: 12px; width: 240px; padding: 12px; }
-#wti-gauche .titre { font-size: 9px; letter-spacing: 3px; color: #7dd3c8; margin-bottom: 10px; }
+#wti-gauche .titre { font-size: 10px; letter-spacing: 2px; color: #7dd3c8; margin-bottom: 10px; display: flex; flex-direction: column; gap: 2px; }
+#wti-gauche .titre .commune { font-size: 11px; font-weight: 800; }
+#wti-gauche .titre .sous2 { font-size: 7.5px; letter-spacing: 3px; color: rgba(232,234,237,0.45); }
 .wti-cat { cursor: pointer; width: 100%; text-align: left; color: inherit; font-family: inherit; border: 1px solid rgba(120,200,190,0.2); border-radius: 11px; padding: 8px 10px; margin-bottom: 8px; background: rgba(255,255,255,0.025); }
 .wti-cat:hover { border-color: #7dd3c8; }
 .wti-cat .lg { display: flex; gap: 7px; align-items: center; font-size: 10.5px; font-weight: 700; }
@@ -67,6 +69,12 @@ const CSS = `
 #wti-analyser { position: absolute; top: 66px; left: 50%; transform: translateX(-50%); cursor: pointer; padding: 8px 16px; font-family: inherit; font-size: 9px; font-weight: 700; letter-spacing: 2px; color: #7dd3c8; border-radius: 9px; background: rgba(14,20,28,0.9); border: 1px solid rgba(120,200,190,0.4); }
 #wti-analyser:hover { background: rgba(120,200,190,0.12); }
 #wt-intel .note { font-size: 7.5px; color: rgba(232,234,237,0.35); line-height: 1.5; margin-top: 8px; }
+@keyframes wti-blink { 50% { opacity: 0.3; } }
+#wt-intel .live-item { padding: 4px 7px; margin: 3px 0; border-radius: 7px; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.025); }
+#wt-intel .live-item.rouge { border-color: rgba(240,82,82,0.5); background: rgba(240,82,82,0.07); }
+#wt-intel .live-item.orange { border-color: rgba(240,166,60,0.5); background: rgba(240,166,60,0.07); }
+#wt-intel .live-item.vert { border-color: rgba(67,209,122,0.4); background: rgba(67,209,122,0.05); }
+#wt-intel .live-item .hh { color: rgba(232,234,237,0.45); font-size: 8px; letter-spacing: 1px; }
 /* drill-down + rapport : fenêtres focus au-dessus de la carte */
 .wti-modal { position: fixed; inset: 0; z-index: 2600; display: flex; align-items: center; justify-content: center; background: rgba(4,7,12,0.6); pointer-events: auto; }
 .wti-modal .boite { width: min(560px, 94vw); max-height: 80vh; display: flex; flex-direction: column; padding: 16px 18px; }
@@ -127,16 +135,17 @@ export function initIntelTwin(viewer) {
   root.innerHTML = `
     <div id="wti-haut">
       <div class="marque">
-        <div class="cerveau">🧠</div>
-        <div><div class="t1">— DIGITAL TWIN</div><div class="t2">Living Digital, France</div></div>
+        <div class="cerveau"><img src="/logo.svg" alt="WATCHTOWER" style="width:24px;height:24px" /></div>
+        <div><div class="t1">WATCH<span style="color:#00d4ff">TOWER</span></div><div class="t2">POSTE DE COMMANDEMENT · JUMEAU NUMÉRIQUE</div></div>
       </div>
       <div class="kpis"></div>
     </div>
     <button id="wti-analyser" type="button">⟳ ANALYSER LA VUE</button>
     <div id="wti-resume" class="wti-glass" style="display:none;position:absolute;top:104px;left:50%;transform:translateX(-50%);padding:7px 14px;font-size:9px;letter-spacing:1px;max-width:70vw;text-align:center"></div>
     <div id="wti-gauche" class="wti-glass">
-      <div class="titre">CIVILISATION TERRITORIALE</div>
+      <div class="titre"><span class="commune">— DIGITAL TWIN</span><span class="sous2">CIVILISATION TERRITORIALE</span></div>
       <div class="cats"></div>
+      <button class="btn heat-gauche" style="cursor:pointer;width:100%;margin-top:5px;padding:7px;font-family:inherit;font-size:9px;font-weight:700;letter-spacing:2px;border-radius:8px;background:rgba(240,122,106,0.08);border:1px solid rgba(240,122,106,0.5);color:#f07a6a">🔥 HEATMAP CATÉGORIES</button>
       <button class="btn analyse-terr" style="cursor:pointer;width:100%;padding:8px;font-family:inherit;font-size:9px;font-weight:700;letter-spacing:2px;border-radius:8px;background:rgba(120,200,190,0.12);border:1px solid #7dd3c8;color:#7dd3c8">🛰 MODE ANALYSE TERRITORIALE</button>
       <button class="btn dangers" style="cursor:pointer;width:100%;margin-top:5px;padding:8px;font-family:inherit;font-size:9px;font-weight:700;letter-spacing:2px;border-radius:8px;background:rgba(240,122,106,0.1);border:1px solid #f07a6a;color:#f07a6a">⚠ DANGERS · EAU · AIR · RÉSEAUX</button>
       <div class="note">Indices calculés depuis les données ouvertes (INSEE via geo.gouv.fr ·
@@ -157,6 +166,11 @@ export function initIntelTwin(viewer) {
         <div class="sous">CAUSAL MATRIX</div><canvas class="matrice" width="240" height="110"></canvas>
         <div class="sous">📰 FLUX VILLE (GDELT · temps réel)</div>
         <div class="news" style="font-size:9px;line-height:1.6">—</div>
+        <div class="sous" style="display:flex;justify-content:space-between;align-items:center">
+          <span>⚠ FEED DANGERS LIVE</span>
+          <span class="live-badge" style="color:#f05252;font-weight:800;font-size:8px;letter-spacing:2px;animation:wti-blink 1.4s infinite">● LIVE</span>
+        </div>
+        <div class="live-liste" style="font-size:9px;line-height:1.65">En attente de l'analyse…</div>
       </div>
       <div class="vue-profil" style="display:none"></div>
     </div>`;
@@ -179,11 +193,31 @@ export function initIntelTwin(viewer) {
     const incarne = Math.min(100, 20 + rempli * 10);
     const enaction = Math.min(100, (String(p.projets || '').split('\n').filter(Boolean).length) * 30 + 10);
     const simulation = p.budget ? 80 : 20;
+    const aRepresent = !!(p.nom || p.prenom);
     vueProfil.innerHTML = `
       <div class="titre"><span>CARTE D'IDENTITÉ COGNITIVE · T0</span></div>
+      ${aRepresent ? `
+      <div style="display:flex;gap:9px;align-items:center;border:1px solid rgba(125,211,200,0.35);border-radius:11px;padding:9px;margin-bottom:8px;background:rgba(125,211,200,0.06)">
+        <div style="width:38px;height:38px;border-radius:50%;background:rgba(125,211,200,0.18);display:flex;align-items:center;justify-content:center;font-size:19px">${/chef|conduct|ingénieur|ingénieure/i.test(p.role || '') ? '👷' : '👤'}</div>
+        <div style="min-width:0">
+          <div style="font-size:12px;font-weight:800">${p.prenom || ''} ${p.nom || ''}</div>
+          <div style="font-size:8px;color:rgba(232,234,237,0.55);letter-spacing:0.5px">${p.role || 'rôle non renseigné'}${p.ville ? ` · ${p.ville}` : ''}${p.naissance ? ` · né(e) ${p.naissance}` : ''}</div>
+        </div>
+      </div>` : `
+      <div style="border:1px solid rgba(240,166,60,0.55);border-radius:11px;padding:9px 10px;margin-bottom:8px;background:rgba(240,166,60,0.08);font-size:9px;line-height:1.6">
+        📝 <b>AUCUNE FICHE D'IDENTITÉ</b> — remplis ta fiche ci-dessous (1 min) :
+        elle te représente (avatar, métriques) et alimente le mode CHANTIER
+        (capacité vs marchés). Stockée UNIQUEMENT en local sur cet appareil.</div>`}
       <div style="font-size:7.5px;color:rgba(232,234,237,0.4);margin-bottom:6px">Trace ID: ${traceId} · Visit ID: ${visitId}</div>
-      <div class="sous">IDENTITÉ</div>
-      <input class="p-nom" placeholder="Nom / pseudo" value="${p.nom || ''}" />
+      <div class="sous">IDENTITÉ (ta représentation)</div>
+      <div style="display:flex;gap:5px">
+        <input class="p-prenom" placeholder="Prénom" value="${p.prenom || ''}" style="flex:1" />
+        <input class="p-nom" placeholder="Nom / pseudo" value="${p.nom || ''}" style="flex:1" />
+      </div>
+      <div style="display:flex;gap:5px">
+        <input class="p-nais" placeholder="Né(e) en (ex : 1985)" value="${p.naissance || ''}" style="flex:1" />
+        <input class="p-ville" placeholder="Ville" value="${p.ville || ''}" style="flex:1" />
+      </div>
       <input class="p-role" placeholder="Métier / rôle (ex : conducteur de travaux)" value="${p.role || ''}" />
       <div class="sous">BUDGET & CAPACITÉ</div>
       <input class="p-budget" type="number" placeholder="Budget mensuel (€)" value="${p.budget || ''}" />
@@ -208,7 +242,10 @@ export function initIntelTwin(viewer) {
       plus le jumeau te connaît, plus les simulations sont ancrées dans ton réel).</div>`;
     vueProfil.querySelector('.p-sauver').addEventListener('click', () => {
       const np = {
+        prenom: vueProfil.querySelector('.p-prenom').value.trim(),
         nom: vueProfil.querySelector('.p-nom').value.trim(),
+        naissance: vueProfil.querySelector('.p-nais').value.trim(),
+        ville: vueProfil.querySelector('.p-ville').value.trim(),
         role: vueProfil.querySelector('.p-role').value.trim(),
         budget: vueProfil.querySelector('.p-budget').value,
         capacite: vueProfil.querySelector('.p-capacite').value,
@@ -368,6 +405,137 @@ export function initIntelTwin(viewer) {
     }
   }
 
+  /** 🏙 BÂTIMENTS 3D PAR CATÉGORIE DE CIVILISATION — analyse territoriale.
+   *  Chaque bâtiment de la zone est coloré selon sa fonction (éducation,
+   *  santé, services publics, culte, industrie, commerce, logement) et les
+   *  bâtiments nomrés reçoivent une icône 🔎 CLIQUABLE → fiche. */
+  let cats3DPrimitive = null;
+  let legende3D = null;
+  const CATS3D = [
+    { nom: 'Éducation', test: (t) => /school|college|university|kindergarten/.test(t.amenity || ''), col: '#37b7ab' },
+    { nom: 'Santé', test: (t) => /hospital|clinic|doctors|pharmacy/.test(t.amenity || ''), col: '#c084fc' },
+    { nom: 'Services publics', test: (t) => /townhall|police|fire_station|library|post_office|courthouse/.test(t.amenity || '') || t.office === 'government', col: '#f0a63c' },
+    { nom: 'Culte / mémoire', test: (t) => /place_of_worship|chapel|monastery/.test(t.amenity || ''), col: '#9a86ff' },
+    { nom: 'Industrie / artisanat', test: (t) => t.industrial || /factory|workshop/.test(t.man_made || ''), col: '#f07a6a' },
+    { nom: 'Commerce / vie', test: (t) => t.shop || /restaurant|cafe|marketplace|theatre|museum/.test(t.amenity || '') || t.tourism, col: '#e8c04a' },
+    { nom: 'Logement / autre', test: () => true, col: '#5f7d95' },
+  ];
+  let pickCatsHandler = null;
+  function effacerCategories3D() {
+    if (cats3DPrimitive) { viewer.scene.primitives.remove(cats3DPrimitive); cats3DPrimitive = null; }
+    legende3D?.remove(); legende3D = null;
+    try { pickCatsHandler?.destroy(); } catch { /* ok */ }
+    pickCatsHandler = null;
+    elemsDs.entities.removeAll();
+  }
+  async function montrerCategories3D() {
+    effacerCategories3D();
+    if (!derniere) return;
+    const { lat, lon } = derniere;
+    const zone = document.createElement('div');
+    zone.style.cssText = 'position:fixed;top:70px;left:50%;transform:translateX(-50%);z-index:2650;background:rgba(8,12,18,0.92);border:1px solid #7dd3c8;border-radius:10px;padding:8px 16px;font-family:var(--font-mono,monospace);font-size:9px;letter-spacing:1px;color:#e8eaed;';
+    zone.textContent = '🏙 Modélisation 3D des bâtiments par catégorie de civilisation…';
+    document.body.appendChild(zone);
+    try {
+      const ways = await overpass(`way(around:1400,${lat},${lon})[building];out geom tags 500;`);
+      const geos = [];
+      const compteurs = {};
+      let nIcones = 0;
+      for (const w of ways) {
+        if (!Array.isArray(w.geometry) || w.geometry.length < 3) continue;
+        const t = w.tags || {};
+        const cat = CATS3D.find((c) => c.test(t)) || CATS3D[CATS3D.length - 1];
+        const plat = [];
+        let cx = 0; let cy = 0;
+        for (const g of w.geometry) { plat.push(g.lon, g.lat); cx += g.lon; cy += g.lat; }
+        cx /= w.geometry.length; cy /= w.geometry.length;
+        const h = parseFloat(t.height) || (parseFloat(t['building:levels']) || 0) * 3.2 || 8;
+        const sol = viewer.scene.globe.getHeight(Cesium.Cartographic.fromDegrees(cx, cy)) || 0;
+        geos.push({
+          geometry: new Cesium.PolygonGeometry({
+            polygonHierarchy: new Cesium.PolygonHierarchy(Cesium.Cartesian3.fromDegreesArray(plat)),
+            height: sol, extrudedHeight: sol + h,
+            vertexFormat: Cesium.PerInstanceColorAppearance.VERTEX_FORMAT,
+          }),
+          attributes: { color: Cesium.ColorGeometryInstanceAttribute.fromColor(Cesium.Color.fromCssColorString(cat.col).withAlpha(0.8)) },
+        });
+        compteurs[cat.nom] = (compteurs[cat.nom] || 0) + 1;
+        // icône-fiche 🔎 cliquable au-dessus des bâtiments nommés
+        if (t.name && nIcones < 60) {
+          elemsDs.entities.add({
+            position: Cesium.Cartesian3.fromDegrees(cx, cy, sol + h + 8),
+            properties: { c3dLon: cx, c3dLat: cy, c3dNom: t.name, c3dCat: cat.nom, c3dCol: cat.col },
+            label: {
+              text: '🔎', font: '20px sans-serif',
+              disableDepthTestDistance: Infinity,
+              scaleByDistance: new Cesium.NearFarScalar(400, 1.1, 15000, 0.3),
+            },
+          });
+          nIcones += 1;
+        }
+      }
+      if (geos.length) {
+        cats3DPrimitive = new Cesium.Primitive({
+          geometries: geos,
+          appearance: new Cesium.PerInstanceColorAppearance({ flat: true, translucent: true }),
+          releaseGeometryInstances: false,
+          asynchronous: false,
+        });
+        viewer.scene.primitives.add(cats3DPrimitive);
+      }
+      // légende flottante
+      legende3D = document.createElement('div');
+      legende3D.style.cssText = 'position:fixed;top:120px;right:12px;z-index:2650;width:230px;background:rgba(8,12,18,0.94);border:1px solid rgba(125,211,200,0.4);border-radius:12px;padding:10px 12px;font-family:var(--font-mono,monospace);font-size:9px;color:#e8eaed;';
+      legende3D.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:7px">
+          <b style="letter-spacing:2px;color:#7dd3c8">🏙 CIVILISATION 3D</b>
+          <button style="cursor:pointer;background:none;border:none;color:rgba(232,234,237,0.6);font-size:12px">✕</button></div>
+        ${CATS3D.filter((c) => compteurs[c.nom]).map((c) => `<div style="display:flex;align-items:center;gap:7px;margin:3px 0"><i style="width:11px;height:11px;border-radius:3px;background:${c.col};display:inline-block"></i>${c.nom}<b style="margin-left:auto">${compteurs[c.nom]}</b></div>`).join('')}
+        <div style="margin-top:7px;color:rgba(232,234,237,0.5);line-height:1.5">🔎 clic sur une icône = fiche du bâtiment.</div>`;
+      document.body.appendChild(legende3D);
+      legende3D.querySelector('button').addEventListener('click', effacerCategories3D);
+      zone.remove();
+      // clic sur une icône 🔎 → fiche
+      const pickCats = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+      pickCats.setInputAction((click) => {
+        let picked = null;
+        try { picked = viewer.scene.pick(click.position); } catch { return; }
+        const ent = picked?.id;
+        if (ent?.properties?.c3dNom?.getValue) {
+          const lon = ent.properties.c3dLon.getValue();
+          const la = ent.properties.c3dLat.getValue();
+          const nomB = ent.properties.c3dNom.getValue();
+          const catB = ent.properties.c3dCat.getValue();
+          const colB = ent.properties.c3dCol.getValue();
+          const fiche = document.createElement('div');
+          fiche.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:2700;width:min(340px,90vw);background:rgba(8,12,18,0.97);border:1px solid ' + colB + ';border-radius:14px;padding:14px 16px;font-family:var(--font-mono,monospace);font-size:10px;color:#e8eaed;';
+          fiche.innerHTML = `
+            <div style="font-size:11px;font-weight:800;letter-spacing:1px;margin-bottom:6px">🔎 ${nomB}</div>
+            <div style="color:${colB};letter-spacing:2px;font-size:9px;margin-bottom:8px">CATÉGORIE : ${catB.toUpperCase()}</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
+              <button class="f-vol" style="cursor:pointer;flex:1;padding:8px;font-family:inherit;font-size:9px;font-weight:700;border-radius:8px;background:rgba(125,211,200,0.1);border:1px solid #7dd3c8;color:#7dd3c8">📍 VOYAGER</button>
+              <button class="f-lieu" style="cursor:pointer;flex:1;padding:8px;font-family:inherit;font-size:9px;font-weight:700;border-radius:8px;background:rgba(0,212,255,0.1);border:1px solid #00d4ff;color:#00d4ff">ℹ️ FICHE LIEU</button>
+              <button class="f-x" style="cursor:pointer;padding:8px;font-family:inherit;font-size:10px;border-radius:8px;background:none;border:1px solid rgba(255,255,255,0.2);color:rgba(232,234,237,0.6)">✕</button>
+            </div>`;
+          document.body.appendChild(fiche);
+          fiche.querySelector('.f-vol').addEventListener('click', () => {
+            viewer.camera.flyTo({ destination: Cesium.Cartesian3.fromDegrees(lon, la, 250), duration: 2 });
+            fiche.remove();
+          });
+          fiche.querySelector('.f-lieu').addEventListener('click', () => {
+            fiche.remove();
+            window.__godsEyeView?.fiche?.ouvrir(lon, la);
+          });
+          fiche.querySelector('.f-x').addEventListener('click', () => fiche.remove());
+        }
+      }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+      pickCatsHandler = pickCats;
+    } catch {
+      zone.textContent = '⚠ Source OSM saturée — réessaie dans quelques secondes.';
+      window.setTimeout(() => zone.remove(), 3500);
+    }
+  }
+
   function fermerDrill() {
     drill?.remove(); drill = null;
     root.querySelectorAll('.wti-kpi').forEach((k) => {
@@ -480,12 +648,28 @@ export function initIntelTwin(viewer) {
     heatDs.entities.removeAll();
     if (!heatActif || !derniere) return;
     const COLS = { ecoles: '#37b7ab', sante: '#c084fc', commerces: '#e8c04a', services: '#f0a63c', vert: '#43d17a' };
+    // v14 FIX : les « point » d'entité n'ont PAS de heightReference (la valeur
+    // était ignorée → points posés au niveau de la mer, SOUS le terrain =
+    // heatmap invisible). On passe à des ellipses clampées au sol, visibles.
     for (const [k, col] of Object.entries(COLS)) {
       for (const e of derniere.listes[k] || []) {
         if (!e.lat) continue;
         heatDs.entities.add({
           position: Cesium.Cartesian3.fromDegrees(e.lon, e.lat),
-          point: { pixelSize: 16, color: Cesium.Color.fromCssColorString(col).withAlpha(0.45), heightReference: Cesium.HeightReference.CLAMP_TO_GROUND },
+          ellipse: {
+            semiMajorAxis: 260, semiMinorAxis: 260,
+            material: Cesium.Color.fromCssColorString(col).withAlpha(0.28),
+            outline: true, outlineColor: Cesium.Color.fromCssColorString(col).withAlpha(0.55),
+            heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+          },
+          label: {
+            text: e.nom, font: '10px JetBrains Mono, monospace',
+            fillColor: Cesium.Color.fromCssColorString(col),
+            showBackground: true, backgroundColor: Cesium.Color.fromCssColorString('#0a0a0f').withAlpha(0.6),
+            pixelOffset: new Cesium.Cartesian2(0, -12),
+            disableDepthTestDistance: Infinity,
+            scaleByDistance: new Cesium.NearFarScalar(800, 1, 12000, 0),
+          },
         });
       }
     }
@@ -530,10 +714,11 @@ export function initIntelTwin(viewer) {
           <div class="zone-boamp">${boamp}</div>
           <div class="sect">5 · SOLUTIONS HYPOTHÉTIQUES (PROPOSITIONS)</div>
           ${(faibles.length ? faibles : ['Bonheur']).map((f) => `💡 <b>${f}</b> : ${HYPO[f]}.<br>`).join('')}
-          <div class="vues">
+          <div class="vues" style="flex-wrap:wrap">
             <button class="v-allo" type="button">🗺 VUE ALLO (dessus)</button>
             <button class="v-ego" type="button">👁 VUE EGO (immersion)</button>
             <button class="v-heat" type="button">🔥 HEATZONES</button>
+            <button class="v-cats3d" type="button" style="border-color:#e8c04a;color:#e8c04a;background:rgba(232,192,74,0.08)">🏙 BÂTIMENTS 3D PAR CATÉGORIE</button>
           </div>
           <div class="note">Rapport heuristique généré à partir de données ouvertes (OSM, INSEE, BOAMP). Gratuit, sans clé, pas d'IA.</div>
         </div>
@@ -549,6 +734,10 @@ export function initIntelTwin(viewer) {
       viewer.camera.flyTo({ destination: Cesium.Cartesian3.fromDegrees(lon, lat - 0.012, 350), orientation: { heading: 0, pitch: Cesium.Math.toRadians(-12), roll: 0 }, duration: 1.8 });
     });
     modal.querySelector('.v-heat').addEventListener('click', basculerHeat);
+    modal.querySelector('.v-cats3d').addEventListener('click', () => {
+      modal.remove();
+      montrerCategories3D();
+    });
     // BOAMP asynchrone
     try {
       const r = await fetch(`https://boamp-datadila.opendatasoft.com/api/records/1.0/search/?dataset=boamp&q=${encodeURIComponent(commune?.nom || '')}&rows=5&sort=dateparution`);
@@ -568,6 +757,10 @@ export function initIntelTwin(viewer) {
     }
   }
   root.querySelector('.analyse-terr').addEventListener('click', ouvrirRapport);
+  root.querySelector('.heat-gauche').addEventListener('click', async () => {
+    if (!derniere) { await analyser(); if (!derniere) return; }
+    basculerHeat();
+  });
 
   // ═══════════ DANGERS · EAU · AIR · RÉSEAUX (gratuit, sans clé) ═══════════
   const CARDINAUX16 = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSO', 'SO', 'OSO', 'O', 'ONO', 'NO', 'NNO'];
@@ -659,6 +852,61 @@ export function initIntelTwin(viewer) {
   }
   root.querySelector('.dangers').addEventListener('click', ouvrirDangers);
 
+  // ═══════════ FEED DANGERS LIVE — fenêtre droite (CONTEXTE) ═══════════
+  // Rafraîchi automatiquement toutes les 5 min tant que l'INTEL est ouvert :
+  // vent/orage (Open-Meteo) + feux de forêt proches (EONET/NOAA) + actu
+  // fraîche de la commune (GDELT 1 h). Gratuit, sans clé.
+  let liveTimer = null;
+  function majLive() {
+    const zone = root.querySelector('.live-liste');
+    if (!zone) return;
+    if (!derniere) { zone.innerHTML = 'En attente de l\u2019analyse (⟳ ANALYSER LA VUE)…'; return; }
+    const { commune, lat, lon } = derniere;
+    const items = [];
+    const hh = () => new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    let rendus = 0;
+    const refaire = () => {
+      rendus += 1;
+      if (rendus < 3) return;
+      if (!zone.isConnected) return;
+      zone.innerHTML = items.length
+        ? items.map(([sev, txt]) => `<div class="live-item ${sev}"><span class="hh">${hh()}</span> ${txt}</div>`).join('')
+        : `<div class="live-item vert"><span class="hh">${hh()}</span> 🟢 Aucune alerte en cours sur la zone (vent, orage, feu, actu).</div>`;
+    };
+    fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat.toFixed(3)}&longitude=${lon.toFixed(3)}&current=wind_speed_10m,wind_gusts_10m,weather_code`)
+      .then((r) => r.json()).then((d) => {
+        const c = d?.current;
+        if (!c) return refaire();
+        if (c.wind_gusts_10m > 90) items.push(['rouge', `🌬 TEMPÊTE — rafales ${Math.round(c.wind_gusts_10m)} km/h (grutage interdit, danger généralisé)`]);
+        else if (c.wind_gusts_10m > 72) items.push(['orange', `🌬 Rafales ${Math.round(c.wind_gusts_10m)} km/h — grutage interdit (>72), vigilance toitures/échafaudages`]);
+        else if (c.wind_gusts_10m > 50) items.push(['orange', `🌬 Vent fort — rafales ${Math.round(c.wind_gusts_10m)} km/h, prudence levage`]);
+        if (c.weather_code >= 95) items.push(['orange', `⛈ Orage en cours — coupures possibles, évitez les pleins airs`]);
+        refaire();
+      }).catch(() => refaire());
+    fetch('https://eonet.nl.noaa.gov/api/v3/events?status=open&days=3&limit=60')
+      .then((r) => r.json()).then((d) => {
+        for (const ev of d?.events || []) {
+          const g = ev.geometry?.[0];
+          if (!g) continue;
+          const [elo, elat] = g;
+          if (Math.abs(elat - lat) < 0.4 && Math.abs(elo - lon) < 0.6 && /wildfire|fire/i.test(ev.title || '')) {
+            const km = Math.round(Math.hypot((elat - lat) * 111, (elo - lon) * 111 * Math.cos((lat * Math.PI) / 180)));
+            items.push(['rouge', `🔥 Feu détecté à ~${km} km (EONET/NOAA, ${String(ev.date || '').slice(0, 10)})`]);
+          }
+        }
+        refaire();
+      }).catch(() => refaire());
+    fetch(`https://api.gdeltproject.org/api/v2/doc/doc?query=${encodeURIComponent(`"${commune?.nom || ''}" sourcelang:fra`)}&mode=artlist&maxrecords=3&timespan=1h&format=json`)
+      .then((r) => r.json()).then((g) => {
+        for (const a of (g?.articles || []).slice(0, 3)) {
+          items.push(['vert', `📰 ${(a.title || '').slice(0, 70)} <span class="hh">${a.domain || ''}</span>`]);
+        }
+        refaire();
+      }).catch(() => refaire());
+  }
+  function demarrerLive() { if (!liveTimer) liveTimer = window.setInterval(majLive, 5 * 60000); }
+  function arreterLive() { if (liveTimer) { window.clearInterval(liveTimer); liveTimer = null; } }
+
   // ═══════════ ANALYSE PRINCIPALE ═══════════
   let analyseEnCours = false;
   async function analyser() {
@@ -700,8 +948,12 @@ export function initIntelTwin(viewer) {
       const iPop = Math.min(100, Math.round(Math.log10(Math.max(10, commune?.population || 10)) * 20));
       derniere = { commune, lat, lon, listes, indices: { edu: iEdu, sante: iSante, eco: iEco, res: iRes, inno: iInno, bonheur: iBonheur, capital: iCapital, pop: iPop } };
 
-      root.querySelector('.marque .t1').textContent = `${(commune?.nom || 'ZONE').toUpperCase()} DIGITAL TWIN`;
-      root.querySelector('.marque .t2').textContent = commune ? `Living Digital, France · ${commune.codesPostaux?.[0] || ''}` : 'Living Digital';
+      // le jumeau de la commune vit DANS la fenêtre CIVILISATION ;
+      // le bandeau porte le logo WATCHTOWER (visible en permanence)
+      const titreComm = root.querySelector('#wti-gauche .titre .commune');
+      if (titreComm) titreComm.innerHTML = commune
+        ? `${commune.nom.toUpperCase()} <span style="color:#7dd3c8">DIGITAL TWIN</span> · ${commune.codesPostaux?.[0] || ''}`
+        : 'ZONE ANALYSÉE';
       root.querySelector('.pop').innerHTML = commune ? `${(commune.population || 0).toLocaleString('fr-FR')} <span class="haut" style="font-size:12px">↑</span>` : '—';
       rendreKpis([
         { ic: '👥', nom: 'Population', texte: commune ? (commune.population || 0).toLocaleString('fr-FR') : '—', val: iPop, cat: 'population' },
@@ -730,6 +982,9 @@ export function initIntelTwin(viewer) {
       ]);
       rendreMatrice(root.querySelector('.matrice'), [listes.vert.length, listes.commerces.length, listes.ecoles.length, listes.sante.length, listes.services.length]);
       if (heatActif) { heatActif = false; basculerHeat(); }
+      // ⚠ feed dangers live dans la fenêtre droite (CONTEXTE)
+      majLive();
+      demarrerLive();
       // 📰 flux ville façon Bloomberg (GDELT, gratuit) + étiquette d'impact heuristique
       fetch(`https://api.gdeltproject.org/api/v2/doc/doc?query=${encodeURIComponent(`"${commune?.nom || ''}" sourcelang:fra`)}&mode=artlist&maxrecords=6&timespan=3m&format=json`)
         .then((r) => r.json()).then((g) => {
@@ -754,7 +1009,7 @@ export function initIntelTwin(viewer) {
     const boussole = document.getElementById('wt-boussole');
     if (boussole) boussole.style.top = ouvert ? '62px' : '10px';
     if (ouvert && !dejaAnalyse) { dejaAnalyse = true; analyser(); }
-    if (!ouvert) { fermerDrill(); elemsDs.entities.removeAll(); }
+    if (!ouvert) { fermerDrill(); effacerCategories3D(); arreterLive(); }
   }).observe(root, { attributes: true, attributeFilter: ['class'] });
 
   return { analyser, ouvrirRapport };

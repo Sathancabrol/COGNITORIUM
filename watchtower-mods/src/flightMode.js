@@ -32,6 +32,31 @@ const CSS = `
   display: flex; gap: 12px; align-items: center;
 }
 #wt-vol-barre button { cursor: pointer; background: rgba(240,90,90,0.12); border: 1px solid #f08a8a; color: #f08a8a; border-radius: 7px; padding: 5px 10px; font-family: inherit; font-size: 9px; font-weight: 700; }
+/* joystick simulé (souris) — pilote le drone en tirant le poignet */
+#wt-vol-stick {
+  position: fixed; top: 52px; left: 50%; transform: translateX(-50%); z-index: 1610;
+  pointer-events: auto; text-align: center;
+}
+#wt-vol-stick .base {
+  width: 118px; height: 118px; margin: 0 auto; border-radius: 50%;
+  border: 1px solid rgba(120,230,150,0.55);
+  background: radial-gradient(circle at 50% 45%, rgba(10,20,14,0.55), rgba(6,12,9,0.85));
+  position: relative; cursor: grab; touch-action: none;
+  box-shadow: inset 0 0 22px rgba(120,230,150,0.12), 0 0 14px rgba(120,230,150,0.15);
+}
+#wt-vol-stick .base::before, #wt-vol-stick .base::after {
+  content: ''; position: absolute; background: rgba(120,230,150,0.25);
+}
+#wt-vol-stick .base::before { left: 50%; top: 8px; bottom: 8px; width: 1px; }
+#wt-vol-stick .base::after { top: 50%; left: 8px; right: 8px; height: 1px; }
+#wt-vol-stick .poignet {
+  position: absolute; width: 42px; height: 42px; border-radius: 50%;
+  left: 50%; top: 50%; transform: translate(-50%, -50%);
+  background: rgba(120,230,150,0.3); border: 2px solid #78e696;
+  box-shadow: 0 0 12px rgba(120,230,150,0.5);
+}
+#wt-vol-stick .base.actif { cursor: grabbing; border-color: #b8ffc9; }
+#wt-vol-stick .legende { margin-top: 5px; font-size: 8px; letter-spacing: 1.5px; color: rgba(159,232,176,0.65); }
 #wt-vol { display: flex; flex-direction: column; gap: 7px; padding: 10px 12px; font-size: 10px; }
 #wt-vol .v-btn { cursor: pointer; padding: 9px 10px; border-radius: 8px; font-family: inherit; font-size: 9.5px; font-weight: 700; letter-spacing: 1px; background: rgba(0,212,255,0.1); border: 1px solid rgba(0,212,255,0.4); color: #00d4ff; }
 #wt-vol .statut { color: rgba(232,234,237,0.55); line-height: 1.6; font-size: 9px; }
@@ -56,9 +81,11 @@ export function initFlightMode(viewer) {
       <input class="v-masse" type="number" value="1350" style="flex:1" /></div>
     <div class="statut">La vue principale devient une caméra embarquée. Commandes :
     <b>Z/S</b> piquer/cabrer · <b>Q/D</b> virage incliné · <b>↑/↓</b> gaz · <b>MAJ</b> boost ·
-    <b>ESPACE</b> stabilisation · <b>ÉCHAP</b> quitter. Chaque fenêtre du HUD se déplace
-    (en-tête) et se redimensionne (coin bas-droit). Météo/hygrométrie réelles (Open-Meteo).
-    Astuce : active 🏙 BÂTI 3D avant le décollage pour survoler la ville en volumes.</div>`;
+    <b>ESPACE</b> stabilisation · <b>🕹 STICK</b> joystick souris (haut centre) · <b>ÉCHAP</b> quitter.
+    Les raccourcis s'affichent aussi dans le HUD. Chaque fenêtre se déplace (en-tête)
+    et se redimensionne (coin). Météo/hygrométrie réelles (Open-Meteo).
+    Astuce : active 🏙 BÂTI 3D avant de décoller — les noms 🏛 au-dessus des toits
+    sont CLIQUABLES → fiche du bâtiment.</div>`;
 
   function creerWidget(hud, id, titre, x, y, w) {
     const d = document.createElement('div');
@@ -96,11 +123,57 @@ export function initFlightMode(viewer) {
     const wTel = creerWidget(hud, 'tel', 'TÉLÉMÉTRIE', W - 205, H - 200, 190);
     const wMet = creerWidget(hud, 'met', 'MÉTÉO · HYGRO', 14, 90, 190);
     const wMas = creerWidget(hud, 'mas', 'MASSE & CHARGE', W - 185, 90, 170);
+    // ⌨ RACCOURCIS — fenêtre de commandes toujours visible
+    const wRacc = creerWidget(hud, 'racc', '⌨ RACCOURCIS CLAVIER', W / 2 - 150, H * 0.34, 190);
+    wRacc.innerHTML = `
+      <b style="color:#b8ffc9">Z / S</b> — piquer / cabrer<br>
+      <b style="color:#b8ffc9">Q / D</b> — virage incliné<br>
+      <b style="color:#b8ffc9">↑ / ↓</b> — gaz<br>
+      <b style="color:#b8ffc9">MAJ</b> — boost ×2<br>
+      <b style="color:#b8ffc9">ESPACE</b> — stabilisation<br>
+      <b style="color:#b8ffc9">🕹 STICK</b> — souris (haut centre)<br>
+      <b style="color:#b8ffc9">ÉCHAP</b> — atterrir<br>
+      <span style="color:rgba(159,232,176,0.55)">🏛 étiquette BÂTI 3D = clic → fiche du bâtiment</span>`;
 
     const barre = document.createElement('div');
     barre.id = 'wt-vol-barre';
-    barre.innerHTML = `<span>✈ MODE PILOTAGE — Z/S · Q/D · ↑/↓ gaz · ESPACE stab.</span><button type="button">🛬 ATTERRIR</button>`;
+    barre.innerHTML = `<span>✈ MODE PILOTAGE — Z/S · Q/D · ↑/↓ gaz · 🕹 stick souris</span><button type="button">🛬 ATTERRIR</button>`;
     document.body.appendChild(barre);
+
+    // 🕹 JOYSTICK SIMULÉ (souris) — tirer le poignet = virage + tangage
+    const stick = document.createElement('div');
+    stick.id = 'wt-vol-stick';
+    stick.innerHTML = '<div class="base"><div class="poignet"></div></div><div class="legende">🕹 TIRER = PILOTER LE DRONE</div>';
+    document.body.appendChild(stick);
+    const manette = { x: 0, y: 0, actif: false };
+    const base = stick.querySelector('.base');
+    const poignet = stick.querySelector('.poignet');
+    const RAYON = 44;
+    const setPoignet = () => { poignet.style.transform = `translate(calc(-50% + ${manette.x * RAYON}px), calc(-50% + ${manette.y * RAYON}px))`; };
+    base.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      manette.actif = true;
+      base.classList.add('actif');
+      try { base.setPointerCapture(e.pointerId); } catch { /* ok */ }
+    });
+    base.addEventListener('pointermove', (e) => {
+      if (!manette.actif) return;
+      const r = base.getBoundingClientRect();
+      const dx = e.clientX - (r.left + r.width / 2);
+      const dy = e.clientY - (r.top + r.height / 2);
+      const d = Math.min(1, Math.hypot(dx, dy) / RAYON);
+      const ang = Math.atan2(dy, dx);
+      manette.x = Math.cos(ang) * d;
+      manette.y = Math.sin(ang) * d;
+      setPoignet();
+    });
+    const relacherStick = () => {
+      manette.actif = false; manette.x = 0; manette.y = 0;
+      base.classList.remove('actif');
+      setPoignet();
+    };
+    base.addEventListener('pointerup', relacherStick);
+    base.addEventListener('pointercancel', relacherStick);
 
     const touches = new Set();
     const down = (e) => {
@@ -133,6 +206,14 @@ export function initFlightMode(viewer) {
       else if (touches.has('KeyD')) { etat.cap += 0.85 * dt * (1 + etat.vitesse / 300); etat.roulis = Math.min(0.6, etat.roulis + 1.6 * dt); }
       else etat.roulis *= 0.92;
       if (touches.has('Space')) { etat.tangage *= 0.85; etat.roulis *= 0.8; }
+      // 🕹 joystick souris : X = virage (roulis suit), Y = tangage (tirer vers le haut = cabrer)
+      if (Math.abs(manette.x) > 0.08) {
+        etat.cap += 0.95 * dt * manette.x * (1 + etat.vitesse / 300);
+        etat.roulis = Math.max(-0.6, Math.min(0.6, etat.roulis + manette.x * 1.8 * dt));
+      }
+      if (Math.abs(manette.y) > 0.08) {
+        etat.tangage = Math.max(-1.1, Math.min(1.1, etat.tangage - manette.y * 0.95 * dt));
+      }
 
       // cinématique
       const v = etat.vitesse * boost;
@@ -175,7 +256,7 @@ export function initFlightMode(viewer) {
       window.clearInterval(meteoTimer);
       window.removeEventListener('keydown', down, true);
       window.removeEventListener('keyup', up, true);
-      hud.remove(); barre.remove();
+      hud.remove(); barre.remove(); stick.remove();
       viewer.scene.screenSpaceCameraController.enableInputs = true;
       viewer.camera.setView({
         destination: viewer.camera.position.clone(),

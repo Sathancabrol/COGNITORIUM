@@ -26,7 +26,7 @@ import { rendreDeplacable } from './draggable.js';
 const CSS = `
 #wt-dock {
   position: fixed; bottom: 0; left: 0; right: 0; z-index: 960;
-  display: flex; justify-content: center; align-items: flex-end; gap: 7px;
+  display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-end; gap: 7px;
   padding: 6px 10px 8px;
   background: linear-gradient(180deg, rgba(5,8,14,0) 0%, rgba(5,8,14,0.85) 55%);
   pointer-events: none;
@@ -156,6 +156,19 @@ export function initMobiDock({ panneauxAncres = [], panneauxExistants = [] } = {
     ancres.set(p.id, { wrap, btn });
   }
 
+  // ── ouverture programmatique : « chaque bouton envoie vers sa fenêtre » ──
+  function ouvrir(id) {
+    const a = ancres.get(id);
+    if (a && a.wrap.classList.contains('wt-dock-cache')) a.btn.click();
+    return !!a;
+  }
+  const boutonsExistants = new Map();
+  function ouvrirExistant(cibleId) {
+    const b = boutonsExistants.get(cibleId);
+    if (b) b.click();
+    return !!b;
+  }
+
   // ── catégories basculant des panneaux DOM existants ──
   for (const p of panneauxExistants) {
     const cible = document.getElementById(p.cibleId);
@@ -168,6 +181,7 @@ export function initMobiDock({ panneauxAncres = [], panneauxExistants = [] } = {
     btn.className = `wt-dock-btn${ouvert ? ' actif' : ''}`;
     btn.innerHTML = `<span class="ic">${p.iconeHtml || p.icone}</span><span class="lb">${p.libelle}</span>`;
     btn.setAttribute('aria-pressed', String(ouvert));
+    boutonsExistants.set(p.cibleId, btn);
     btn.addEventListener('click', () => {
       if (typeof p.surClic === 'function') p.surClic();
       const visible = !cible.classList.contains('wt-dock-cache');
@@ -208,5 +222,5 @@ export function initMobiDock({ panneauxAncres = [], panneauxExistants = [] } = {
   dock.appendChild(btnHud);
   reveiller();
 
-  return { dock, fermerAncres };
+  return { dock, fermerAncres, ouvrir, ouvrirExistant };
 }

@@ -254,6 +254,21 @@ export function initWatchtowerExtras({ viewer }) {
         <div data-wt="listevues"></div>
       </div>
       <div class="wt-section">
+        <div class="wt-k">🛤 ROADMAP — OPTIONS NON INCLUSES (EN CONSTRUCTION)</div>
+        <details style="font-size:8.5px;line-height:1.7;color:rgba(232,234,237,0.6)">
+          <summary style="cursor:pointer;letter-spacing:1px;color:var(--accent,#00d4ff)">AFFICHER LA LISTE</summary>
+          🚦 <b>Trafic temps réel gratuit</b> — recherche de source fiable sans clé en cours<br>
+          🛰 <b>Timelapse satellite Sentinel-2</b> — gratuit (Copernicus) mais compte requis, révisite ~5 j<br>
+          📐 <b>Import BIM/IFC 3D</b> — lecteur open source en développement<br>
+          📡 <b>Multi-GPS engins / Traccar</b> — nécessite un serveur + identifiants<br>
+          📸 <b>Photo → coordonnées (GeoSpy)</b> — version schématique en attendant<br>
+          🏃 <b>Calques vélo / rando / transports</b> — à venir (OSM, gratuit)<br>
+          ⚡ <b>État réseau électrique par quartier</b> — non public (stats Enedis seules)<br>
+          🎥 <b>Caméras premium</b> — API payante (mode payant)<br>
+          🧮 <b>Cas pratiques ouvriers TP</b> — ton document à venir → affine le DEVIS<br>
+        </details>
+      </div>
+      <div class="wt-section">
         <div class="wt-k">IMPORT DE FICHIERS</div>
         <div class="wt-note">Glisse un fichier <b>KML · KMZ · GeoJSON · GPX</b> n'importe où
         sur le globe : tracés, parcelles, relevés s'affichent directement.</div>

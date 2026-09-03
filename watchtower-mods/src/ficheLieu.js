@@ -264,6 +264,8 @@ export function initFicheLieu(viewer) {
         <button class="v-btn orbite">🚁 ORBITE DRONE</button>
         <button class="v-btn scene">🎬 SCÈNE SUIVANTE</button>
         <button class="v-btn interieur">🚶 VUE POV (street)</button>
+        <button class="v-btn" data-x="intel" title="Ouvrir l'analyse INTEL de ce point">🧠 INTEL</button>
+        <button class="v-btn" data-x="chantier" title="Ouvrir le hub CHANTIER (prospection ici)">🏗 CHANTIER</button>
         <button class="v-btn stop">⏹ STOP</button>
       </div>
       <div class="note3d">VISITE 3D : orbite/scènes autour du bâtiment, ou visite INTÉRIEURE
@@ -324,13 +326,23 @@ export function initFicheLieu(viewer) {
       );
     });
     panneau.querySelector('.stop').addEventListener('click', arreterOrbite);
-    panneau.querySelector('.interieur').addEventListener('click', () => visiteInterieure(lon, lat));
+    panneau.querySelector('.interieur').addEventListener('click', () => vuePOVStreet(lat, lon, {
+      nom: nom,
+      onEtat: (msg) => { const n = panneau?.querySelector('.note3d'); if (n) n.textContent = msg; },
+    }));
+    // boutons « aller vers la fenêtre correspondante »
+    panneau.querySelector('[data-x="intel"]')?.addEventListener('click', () => {
+      window.__godsEyeView?.dock?.ouvrirExistant?.('wt-intel');
+      window.setTimeout(() => window.__godsEyeView?.intel?.analyser?.(), 500);
+    });
+    panneau.querySelector('[data-x="chantier"]')?.addEventListener('click', () => {
+      window.__godsEyeView?.dock?.ouvrir?.('chantier');
+    });
   }
 
-  // ── VISITE INTÉRIEURE schématique (version gratuite) ──────────────────────
-  // Le « plan » est l'emprise au sol du bâtiment (OSM/cadastre) ; la hauteur
-  // vient des tags OSM sinon est estimée. On reconstruit un volume translucide
-  // et on place la caméra DEDANS, pilotable comme un drone (ZQSD + flèches).
+  // ── VUE POV STREET (version gratuite) — réutilisable (panneau 📍 MOI) ──
+  // L'emprise du bâtiment (OSM) est reconstruite en volume translucide ;
+  // la caméra se place DEVANT, à hauteur d'homme, pilotable (ZQSD + flèches).
   let interieur = null;
 
   function quitterInterieur() {
@@ -349,18 +361,18 @@ export function initFicheLieu(viewer) {
     );
   }
 
-  async function visiteInterieure(lon, lat) {
+  async function vuePOVStreet(lat, lon, { nom, onEtat } = {}) {
     arreterOrbite();
     quitterInterieur();
-    const note = panneau?.querySelector('.note3d');
-    if (note) note.textContent = '🔍 Recherche de l\u2019emprise du bâtiment (OSM)…';
+    const note = (msg) => { onEtat?.(msg); };
+    note('🔍 Recherche de l\u2019emprise du bâtiment (OSM)…');
     let bat = null;
     try {
       const els = await overpass(`way(around:45,${lat},${lon})[building];out geom tags 1;`);
       bat = els.find((e) => Array.isArray(e.geometry) && e.geometry.length > 2) || null;
     } catch { bat = null; }
     if (!bat) {
-      if (note) note.textContent = '⚠ Aucune emprise de bâtiment référencée ici (OSM) — impossible de reconstruire le volume. Essaie de cliquer plus près du bâtiment.';
+      note('⚠ Aucune emprise de bâtiment référencée ici (OSM) — impossible de reconstruire le volume. Essaie de cliquer plus près du bâtiment.');
       return;
     }
     const plat = [];
@@ -424,20 +436,47 @@ export function initFicheLieu(viewer) {
     barre.style.cssText = 'position:fixed;bottom:160px;left:50%;transform:translateX(-50%);z-index:2000;'
       + 'background:rgba(8,12,20,0.92);border:1px solid #00d4ff;border-radius:10px;padding:8px 14px;'
       + 'font-family:var(--font-mono,monospace);font-size:9px;letter-spacing:1px;color:#e8eaed;display:flex;gap:12px;align-items:center;';
-    barre.innerHTML = `<span>🚶 POV STREET (${tags.name || 'bâtiment'} · ~${Math.round(h)} m · volume 3D du plan réel)
+    barre.innerHTML = `<span>🚶 POV STREET (${nom || tags.name || 'bâtiment'} · ~${Math.round(h)} m · volume 3D du plan réel)
       — <b style="color:#00d4ff">ZQSD</b> déplacer · <b style="color:#00d4ff">FLÈCHES</b> regarder · <b style="color:#00d4ff">R/F</b> monter/descendre</span>
       <button style="cursor:pointer;background:rgba(240,90,90,0.12);border:1px solid #f08a8a;color:#f08a8a;border-radius:7px;padding:5px 10px;font-family:inherit;font-size:9px;font-weight:700">QUITTER</button>`;
     barre.querySelector('button').addEventListener('click', quitterInterieur);
     document.body.appendChild(barre);
 
     interieur = { entites, timer, down, up, barre, lon, lat };
-    if (note) note.textContent = '🏠 Visite intérieure active — volume reconstruit depuis l\u2019emprise réelle du bâtiment. QUITTER ou ÉCHAP pour sortir.';
+    note('🏠 POV street actif — volume reconstruit depuis l\u2019emprise réelle du bâtiment. QUITTER ou ÉCHAP pour sortir.');
+  }
+
+  // ── repère « MA MAISON » : icône CLIQUABLE sur la carte → fiche ──
+  const dsRepere = new Cesium.CustomDataSource('wt-ma-maison');
+  viewer.dataSources.add(dsRepere);
+  let repereMaison = null;
+  function marqueurDomicile({ lat, lon, label }) {
+    dsRepere.entities.removeAll();
+    repereMaison = { lat, lon, label };
+    dsRepere.entities.add({
+      id: 'wt-maison',
+      position: Cesium.Cartesian3.fromDegrees(lon, lat),
+      point: { pixelSize: 10, color: Cesium.Color.YELLOW, outlineColor: Cesium.Color.BLACK, outlineWidth: 2, heightReference: Cesium.HeightReference.CLAMP_TO_GROUND },
+      label: {
+        text: `🏠 ${label || 'MA MAISON'}\nℹ️ INFO`,
+        font: '13px JetBrains Mono, monospace',
+        fillColor: Cesium.Color.YELLOW,
+        showBackground: true,
+        backgroundColor: Cesium.Color.fromCssColorString('#0a0a0f').withAlpha(0.85),
+        pixelOffset: new Cesium.Cartesian2(0, -16),
+        disableDepthTestDistance: Infinity,
+      },
+    });
   }
 
   // ── clic gauche sur le globe → fiche ──
   const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
   handler.setInputAction((click) => {
     if (window.__wtDessin || interieur) return; // dessin de zone chantier ou visite en cours
+    // clic sur le repère « MA MAISON » → fiche du domicile (même après un vol)
+    let picked = null;
+    try { picked = viewer.scene.pick(click.position); } catch { /* ok */ }
+    if (picked?.id === 'wt-maison' && repereMaison) { ouvrir(repereMaison.lon, repereMaison.lat); return; }
     let cart = null;
     try {
       if (viewer.scene.pickPositionSupported) cart = viewer.scene.pickPosition(click.position);
@@ -454,5 +493,5 @@ export function initFicheLieu(viewer) {
 
   window.addEventListener('keydown', (e) => { if (e.key === 'Escape') fermer(); });
 
-  return { ouvrir, fermer };
+  return { ouvrir, fermer, vuePOVStreet, marqueurDomicile };
 }

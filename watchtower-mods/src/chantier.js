@@ -59,7 +59,57 @@ const CSS = `
 #wt-marche-focus .k { color: rgba(232,234,237,0.5); letter-spacing: 1px; font-size: 8px; }
 #wt-marche-focus .actions { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
 #wt-marche-focus .actions > * { cursor: pointer; padding: 8px 11px; font-family: inherit; font-size: 9px; font-weight: 700; border-radius: 8px; background: rgba(0,212,255,0.1); border: 1px solid rgba(0,212,255,0.45); color: #00d4ff; text-decoration: none; }
+/* 🧮 DEVIS — grande fenêtre PAR-DESSUS la vue principale (v14) */
+#wt-devis { position: fixed; inset: 0; z-index: 2650; display: flex; align-items: center; justify-content: center; background: rgba(4,7,12,0.55); font-family: var(--font-mono, monospace); pointer-events: auto; }
+#wt-devis .boite { width: min(920px, 95vw); max-height: 86vh; display: flex; flex-direction: column; background: rgba(8,12,20,0.97); border: 1px solid #00d4ff; border-radius: 16px; color: #e8eaed; box-shadow: 0 18px 60px rgba(0,0,0,0.6); }
+#wt-devis .tete { display: flex; align-items: center; gap: 9px; padding: 12px 16px; border-bottom: 1px solid rgba(0,212,255,0.3); cursor: move; }
+#wt-devis .tete .nm { font-size: 12px; font-weight: 800; letter-spacing: 1px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#wt-devis .tete .x { cursor: pointer; background: none; border: none; color: rgba(232,234,237,0.6); font-size: 15px; font-family: inherit; }
+#wt-devis .defile { overflow-y: auto; padding: 14px 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 14px; font-size: 10px; line-height: 1.6; }
+#wt-devis .col { border: 1px solid rgba(0,212,255,0.2); border-radius: 12px; padding: 10px 12px; background: rgba(255,255,255,0.02); }
+#wt-devis .col h3 { font-size: 9px; letter-spacing: 2px; color: #00d4ff; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+#wt-devis .col h3 button { cursor: pointer; font-family: inherit; font-size: 8px; font-weight: 700; letter-spacing: 1px; padding: 4px 8px; border-radius: 6px; background: rgba(0,212,255,0.1); border: 1px solid rgba(0,212,255,0.4); color: #00d4ff; }
+#wt-devis .k { color: rgba(232,234,237,0.5); letter-spacing: 1px; font-size: 8px; }
+#wt-devis table { width: 100%; border-collapse: collapse; font-size: 9px; }
+#wt-devis th { text-align: left; font-size: 7.5px; letter-spacing: 1px; color: rgba(232,234,237,0.5); padding: 3px 4px; border-bottom: 1px solid rgba(255,255,255,0.12); }
+#wt-devis td { padding: 4px; border-bottom: 1px solid rgba(255,255,255,0.06); }
+#wt-devis td.num { text-align: right; white-space: nowrap; }
+#wt-devis .tr-actif td { background: rgba(0,212,255,0.1); font-weight: 700; color: #00d4ff; }
+#wt-devis .total { display: flex; justify-content: space-between; padding: 7px 10px; margin-top: 8px; border-radius: 9px; background: rgba(0,212,255,0.08); border: 1px solid rgba(0,212,255,0.3); font-weight: 800; font-size: 11px; }
+#wt-devis .total .ok { color: #43d17a; }
+#wt-devis .total .ko { color: #f07a6a; }
+#wt-devis .actions { display: flex; gap: 6px; padding: 10px 16px 14px; border-top: 1px solid rgba(0,212,255,0.2); flex-wrap: wrap; }
+#wt-devis .actions > * { cursor: pointer; padding: 9px 12px; font-family: inherit; font-size: 9px; font-weight: 700; letter-spacing: 1px; border-radius: 9px; background: rgba(0,212,255,0.1); border: 1px solid rgba(0,212,255,0.45); color: #00d4ff; }
+#wt-devis .actions > .vert { border-color: rgba(67,209,122,0.55); color: #43d17a; background: rgba(67,209,122,0.08); }
+#wt-devis .zone-ligne { padding: 6px 8px; border-radius: 8px; background: rgba(255,255,255,0.035); border: 1px solid rgba(255,255,255,0.09); margin-bottom: 5px; font-size: 9.5px; }
 `;
+
+// Gabarits de phasage selon le TYPE de chantier (fractions cumulées de la durée)
+const GABARITS = {
+  batiment: [['Installation', 0.06], ['Terrassement', 0.2], ['Gros œuvre', 0.5], ['Second œuvre', 0.78], ['Finitions', 0.94], ['Livraison', 1]],
+  voirie: [['Installation·déviation', 0.08], ['Rabotage/démolition', 0.2], ['Terrassement', 0.42], ['Assises & réseaux', 0.66], ['Enrobés', 0.88], ['Signalisation·réception', 1]],
+  terrassement: [['Installation', 0.08], ['Décapage', 0.25], ['Déblais/remblais', 0.72], ['Compactage·drainage', 0.92], ['Réception', 1]],
+  renovation: [['Diagnostic·curage', 0.16], ['Structure·reprises', 0.44], ['Second œuvre', 0.74], ['Finitions', 0.94], ['Livraison', 1]],
+  paysager: [['Préparation du sol', 0.22], ['Réseaux·arrosage', 0.44], ['Plantations', 0.74], ['Mobilier·allées', 0.92], ['Réception', 1]],
+};
+const TYPES_ICONE = { batiment: '🏢', voirie: '🛣', terrassement: '⛰', renovation: '🔨', paysager: '🌳' };
+
+/** Surface (m²) d'un polygone [lon1,lat1,lon2,lat2,…] — approximation plane locale. */
+function airePolygoneM2(coords) {
+  if (!coords || coords.length < 6) return 0;
+  const rad = Math.PI / 180;
+  let a = 0;
+  const n = coords.length / 2;
+  for (let i = 0; i < n; i += 1) {
+    const j = (i + 1) % n;
+    const x1 = coords[i * 2] * 111320 * Math.cos(coords[i * 2 + 1] * rad);
+    const y1 = coords[i * 2 + 1] * 110574;
+    const x2 = coords[j * 2] * 111320 * Math.cos(coords[j * 2 + 1] * rad);
+    const y2 = coords[j * 2 + 1] * 110574;
+    a += x1 * y2 - x2 * y1;
+  }
+  return Math.abs(a / 2);
+}
 
 const jour = 86400000;
 const fmtDate = (t) => new Date(t).toLocaleDateString('fr-FR');
@@ -192,7 +242,8 @@ export function initChantier(viewer) {
         🧮 DEVIS = génère le dossier interne (budget/planning) dans ▶ SIMULATION.</div>
         <div class="actions">
           <button class="ressources" type="button">📚 RESSOURCES</button>
-          <button class="devis" type="button">🧮 DEVIS</button>
+          <button class="devis" type="button">🧮 DEVIS (fenêtre)</button>
+          <button class="zone-carte" type="button">🗺 ZONE SUR CARTE</button>
           <button class="ajouter" type="button">📌 MES PROJETS</button>
           <button class="fermer" type="button" style="border-color:rgba(255,255,255,0.2);color:rgba(232,234,237,0.6)">FERMER</button>
         </div>
@@ -211,7 +262,8 @@ export function initChantier(viewer) {
     });
     focus.querySelector('.mes-docs').addEventListener('click', () => { focus.remove(); rendrePage('dossier'); });
     focus.querySelector('.devis').addEventListener('click', () => {
-      // devis interne : crée le projet + la fiche simulation (budget/planning/administratif)
+      // devis interne : crée le projet + la fiche simulation, puis OUVERTURE
+      // de la grande fenêtre DEVIS par-dessus la vue principale (v14)
       const nom = String(objet).slice(0, 80);
       if (!projets.some((x) => x.nom === nom)) projets.push({ nom, source: 'BOAMP', date: Date.now() });
       ecrireJson(S_PROJETS, projets);
@@ -223,7 +275,11 @@ export function initChantier(viewer) {
       sims.__sel = nom;
       ecrireJson(S_SIM, sims);
       focus.remove();
-      rendrePage('simulation');
+      ouvrirDevis(nom, f);
+    });
+    focus.querySelector('.zone-carte').addEventListener('click', () => {
+      focus.remove();
+      window.wtAller?.pageChantier?.('phasage');
     });
     focus.querySelector('.ajouter').addEventListener('click', () => {
       projets.push({ nom: String(objet).slice(0, 80), source: 'BOAMP', date: Date.now() });
@@ -231,6 +287,158 @@ export function initChantier(viewer) {
       focus.remove();
       rendrePage('dossier');
     });
+  }
+
+  // ═════════ 🧮 DEVIS — grande fenêtre PAR-DESSUS la vue principale (v14) ═══
+  // Template rempli avec : le dossier du projet (BOAMP + documents importés),
+  // les ZONES de chantier définies (PHASAGE, surface, phase courante,
+  // attributions matériel/collaborateurs), le phasage SYNCHRONISÉ au type de
+  // chantier (durations + budget par phase, aléas), le budget résumé.
+  let devisEl = null;
+  function fermerDevis() { devisEl?.remove(); devisEl = null; }
+
+  function ouvrirDevis(nom, metaFiche = null) {
+    fermerDevis();
+    const fiche = sims[nom] || { budget: 850000, duree: 120, notes: '' };
+    const budget = Number(fiche.budget) || 850000;
+    const duree = Number(fiche.duree) || 120;
+    const zonesProjet = zones.filter((z) => z.projet === nom);
+    const typeZone = zonesProjet[0]?.type || 'batiment';
+    const phases = GABARITS[typeZone] || GABARITS.batiment;
+    const surface = zonesProjet.reduce((a, z) => a + airePolygoneM2(z.coords), 0);
+    // phasage synchronisé : part de chaque phase = fraction cumulée (durations ET budget)
+    const phasesActives = zonesLigneActives(zonesProjet, typeZone);
+    let prev = 0;
+    const lignesPhase = phases.map(([phNom, fin]) => {
+      const part = fin - prev;
+      prev = fin;
+      return { phNom, part, jours: Math.max(1, Math.round(duree * part)), budgetPhase: budget * part };
+    });
+    // phase courante de chaque zone (curseur 4D partagé avec PHASAGE)
+    const zonesLignes = zonesProjet.map((z) => {
+      const f = (dateCourante - z.debut) / Math.max(1, z.fin - z.debut);
+      const phase = f >= 0 && f <= 1 ? (phases.find(([nm, ff]) => f <= ff)?.[0] || 'en cours') : null;
+      const etat = dateCourante < z.debut ? '⏳ à venir' : dateCourante > z.fin ? '✅ terminé' : `🚧 ${phase}`;
+      const attribs = [
+        (z.materiel || []).length ? `🚜 ${z.materiel.join(', ')}` : '',
+        (z.personnel || []).length ? `👷 ${z.personnel.join(', ')}` : '',
+      ].filter(Boolean).join(' · ');
+      return `<div class="zone-ligne">
+        <b>${TYPES_ICONE[z.type] || '🏗'} ${z.nom}</b> <small style="color:rgba(232,234,237,0.5)">${z.parcelle ? '· 📐 cadastre' : ''}</small>
+        <div style="color:rgba(232,234,237,0.55)">${fmtDate(z.debut)} → ${fmtDate(z.fin)} · ${etat}</div>
+        ${attribs ? `<div style="color:rgba(232,234,237,0.55)">${attribs}</div>` : ''}
+      </div>`;
+    }).join('') || '<div style="color:rgba(232,234,237,0.5)">Aucune zone de chantier liée à ce projet — défins-en dans 🗓 PHASAGE (champ « projet »).</div>';
+    // ressources du dossier : documents + matériel/equipe attribués aux zones
+    const docsProjet = docs[nom] || [];
+    const matAttribue = [...new Set(zonesProjet.flatMap((z) => z.materiel || []))];
+    const persAttribue = [...new Set(zonesProjet.flatMap((z) => z.personnel || []))];
+    const invMat = inventaire.filter((i) => matAttribue.includes(i.nom));
+    const coutMat = invMat.filter((i) => i.mode === 'location').reduce((a, i) => a + (Number(i.cout) || 0) * duree, 0);
+    // budget résumé : structure provisoire (affinée par ton document de cas pratiques)
+    const mainOuvrage = budget * 0.58;
+    const materielCo = budget * 0.22;
+    const fournitures = budget * 0.20;
+    const alea = budget * 0.04;
+
+    devisEl = document.createElement('div');
+    devisEl.id = 'wt-devis';
+    devisEl.innerHTML = `
+      <div class="boite">
+        <div class="tete">
+          <span style="font-size:16px">🧮</span>
+          <span class="nm">DEVIS INTÉRIEUR — ${nom.slice(0, 70)}${metaFiche?.montant ? '' : ' <small style="color:rgba(232,234,237,0.45)">(estimation interne — montant BOAMP non publié)</small>'}</span>
+          <button class="x" type="button">✕</button>
+        </div>
+        <div class="defile">
+          <div class="col">
+            <h3>📂 DOSSIER DU PROJET <button class="d-dossier">📂 DOSSIER</button></h3>
+            ${metaFiche ? `
+              <div><span class="k">ACHETEUR</span><br>${metaFiche.nomacheteur || metaFiche.acheteur || '—'}</div>
+              <div><span class="k">PARUTION / LIMITE DE RÉPONSE</span> ${metaFiche.dateparution || '—'} / <b>${metaFiche.datelimitereponse || metaFiche.date_limite_reponse || '—'}</b></div>
+              <div><span class="k">TYPE / DÉPT</span> ${metaFiche.famille || metaFiche.type_marche || '—'} · ${metaFiche.code_departement || '—'}</div>` : ''}
+            <div style="margin-top:6px"><span class="k">NOTES</span><br>${fiche.notes || '—'}</div>
+            <div style="margin-top:6px"><span class="k">DOCUMENTS IMPORTÉS (${docsProjet.length})</span></div>
+            ${docsProjet.length ? docsProjet.slice(0, 8).map((d) => `<div>📎 ${d.nom} <small style="color:rgba(232,234,237,0.4)">${(d.taille / 1024).toFixed(0)} Ko</small></div>`).join('') : '<div style="color:rgba(232,234,237,0.45)">Aucun — importe les plans/DCE dans 📂 DOSSIER (glisser-déposer).</div>'}
+          </div>
+          <div class="col">
+            <h3>🗺 ZONE(S) DE CHANTIER <button class="d-carre">📍 VOIR SUR LA CARTE</button></h3>
+            <div><span class="k">SURFACE TOTALE</span> <b>${surface > 0 ? `${Math.round(surface).toLocaleString('fr-FR')} m²` : '—'}</b> · <span class="k">TYPE</span> ${TYPES_ICONE[typeZone] || ''} ${typeZone}</div>
+            <div style="margin-top:6px">${zonesLignes}</div>
+            <div style="margin-top:6px"><span class="k">MATÉRIEL ATTRIBUÉ</span></div>
+            ${invMat.length ? invMat.map((i) => `<div>${i.ic} ${i.nom} — ${i.mode === 'location' ? `${fmtEuro(Number(i.cout) || 0)}/j` : fmtEuro(Number(i.cout) || 0)}</div>`).join('') : '<div style="color:rgba(232,234,237,0.45)">Aucun — attribue dans 🗓 PHASAGE (Ctrl+clic).</div>'}
+            <div style="margin-top:6px"><span class="k">COLLABORATEURS ATTRIBUÉS</span></div>
+            <div style="color:rgba(232,234,237,0.75)">${persAttribue.length ? persAttribue.join(' · ') : '—'}</div>
+          </div>
+          <div class="col">
+            <h3>🗓 PHASAGE SYNCHRONISÉ (gabarit « ${typeZone} ») <button class="d-phasage">✏ PHASAGE</button></h3>
+            <table>
+              <tr><th>PHASE</th><th style="text-align:right">JOURS</th><th style="text-align:right">BUDGET</th><th style="text-align:right">CUMUL</th></tr>
+              ${lignesPhase.map((l, i) => {
+                const cumul = lignesPhase.slice(0, i + 1).reduce((a, x) => a + x.budgetPhase, 0);
+                const active = phasesActives.has(l.phNom);
+                return `<tr class="${active ? 'tr-actif' : ''}"><td>${i + 1}. ${l.phNom}</td><td class="num">${l.jours} j</td><td class="num">${fmtEuro(l.budgetPhase)}</td><td class="num">${fmtEuro(cumul)}</td></tr>`;
+              }).join('')}
+            </table>
+            <div style="margin-top:5px;color:rgba(232,234,237,0.55)">Ligne bleu = phase courante (curseur 4D partagé avec l'onglet 🗓 PHASAGE).</div>
+          </div>
+          <div class="col">
+            <h3>💶 BUDGET RÉSUMÉ <button class="d-sim">💾 SIMULATION</button></h3>
+            <table>
+              <tr><th>POSTE</th><th style="text-align:right">MONTANT</th></tr>
+              <tr><td>Main d'œuvre (≈ 58 %)</td><td class="num">${fmtEuro(mainOuvrage)}</td></tr>
+              <tr><td>Matériel (≈ 22 %${invMat.length ? ' — attribué' : ''})</td><td class="num">${fmtEuro(materielCo)}</td></tr>
+              <tr><td>Fournitures (≈ 20 %)</td><td class="num">${fmtEuro(fournitures)}</td></tr>
+              <tr><td>Aléas (4 %, 2ᵉ moitié)</td><td class="num">${fmtEuro(alea)}</td></tr>
+            </table>
+            <div class="total"><span>TOTAL DEVIS (HT ≈)</span><span>${fmtEuro(budget)}</span></div>
+            <div style="margin-top:6px;color:rgba(232,234,237,0.5);line-height:1.6">📎 Répartition provisoire type travaux publics — elle sera affinée avec
+            <b>ton document de cas pratiques ouvriers TP</b> (à fournir) : quantités, cadences, effectifs.</div>
+            ${metaFiche?.montant ? `<div style="margin-top:5px">📌 Montant publié BOAMP : <b>${fmtEuro(Number(metaFiche.montant))}</b></div>` : ''}
+          </div>
+        </div>
+        <div class="actions">
+          <button class="vert d-zones" type="button">🗺 AFFICHER LA ZONE SUR LA CARTE</button>
+          <button class="d-phasage2" type="button">✏ MODIFIER LE PHASAGE</button>
+          <button class="d-dossier2" type="button">📂 DOSSIER / DOCUMENTS</button>
+          <button class="d-fermer" type="button" style="border-color:rgba(255,255,255,0.2);color:rgba(232,234,237,0.6)">FERMER</button>
+        </div>
+      </div>`;
+    document.body.appendChild(devisEl);
+    import('./draggable.js').then((m) => m.rendreDeplacable(devisEl.querySelector('.boite'), devisEl.querySelector('.tete'))).catch(() => {});
+    const allerPhasage = () => { fermerDevis(); window.wtAller?.pageChantier?.('phasage'); };
+    const allerDossier = () => { fermerDevis(); window.wtAller?.pageChantier?.('dossier'); };
+    const allerSim = () => { fermerDevis(); window.wtAller?.pageChantier?.('simulation'); };
+    const voirZones = () => {
+      const z0 = zonesProjet[0];
+      if (!z0 || !z0.coords?.length) { fermerDevis(); allerPhasage(); return; }
+      let cx = 0; let cy = 0;
+      for (let i = 0; i < z0.coords.length / 2; i += 1) { cx += z0.coords[i * 2]; cy += z0.coords[i * 2 + 1]; }
+      cx /= z0.coords.length / 2; cy /= z0.coords.length / 2;
+      viewer.camera.flyTo({ destination: Cesium.Cartesian3.fromDegrees(cx, cy, 1200), duration: 2.2 });
+    };
+    devisEl.querySelector('.x').addEventListener('click', fermerDevis);
+    devisEl.addEventListener('click', (e) => { if (e.target === devisEl) fermerDevis(); });
+    devisEl.querySelector('.d-fermer').addEventListener('click', fermerDevis);
+    devisEl.querySelector('.d-zones').addEventListener('click', voirZones);
+    devisEl.querySelector('.d-carre').addEventListener('click', voirZones);
+    devisEl.querySelector('.d-phasage').addEventListener('click', allerPhasage);
+    devisEl.querySelector('.d-phasage2').addEventListener('click', allerPhasage);
+    devisEl.querySelector('.d-dossier').addEventListener('click', allerDossier);
+    devisEl.querySelector('.d-dossier2').addEventListener('click', allerDossier);
+    devisEl.querySelector('.d-sim').addEventListener('click', allerSim);
+  }
+  /** Phases en cours (curseur 4D) sur l'ensemble des zones du projet. */
+  function zonesLigneActives(zonesProjet, typeZone) {
+    const actives = new Set();
+    for (const z of zonesProjet) {
+      const f = (dateCourante - z.debut) / Math.max(1, z.fin - z.debut);
+      if (f < 0 || f > 1) continue;
+      const phases2 = GABARITS[z.type] || GABARITS[typeZone] || GABARITS.batiment;
+      const nm = phases2.find(([n, ff]) => f <= ff)?.[0];
+      if (nm) actives.add(nm);
+    }
+    return actives;
   }
 
   async function prospecter() {
@@ -363,13 +571,16 @@ export function initChantier(viewer) {
         <button class="c-btn fin" type="button" style="display:none">✔ TERMINER LA ZONE</button>
         <div class="forme" style="display:none;flex-direction:column;gap:5px">
           <input class="f-nom" placeholder="Nom de la zone (ex : Terrassement lot A)" />
-          <select class="f-type">
-            <option value="batiment">🏢 Bâtiment neuf</option>
-            <option value="voirie">🛣 VRD / voirie</option>
-            <option value="terrassement">⛰ Terrassement pur</option>
-            <option value="renovation">🔨 Rénovation</option>
-            <option value="paysager">🌳 Aménagement paysager</option>
-          </select>
+          <div class="rang">
+            <select class="f-projet" title="Projet lié (la zone apparaîtra dans son DEVIS)"></select>
+            <select class="f-type">
+              <option value="batiment">🏢 Bâtiment neuf</option>
+              <option value="voirie">🛣 VRD / voirie</option>
+              <option value="terrassement">⛰ Terrassement pur</option>
+              <option value="renovation">🔨 Rénovation</option>
+              <option value="paysager">🌳 Aménagement paysager</option>
+            </select>
+          </div>
           <div class="rang"><input class="f-debut" type="date" /><input class="f-fin" type="date" /></div>
           <div class="rang">
             <select class="f-mat" multiple size="3" style="flex:1" title="Matériel attribué (Ctrl+clic = multiple)"></select>
@@ -385,14 +596,6 @@ export function initChantier(viewer) {
         Curseur 4D : gris = à venir · orange = en cours · vert = terminé.</div>`;
       const curseur = page.querySelector('input[type=range]');
       const forme = page.querySelector('.forme');
-      // gabarits de phasage selon le TYPE de chantier (fractions cumulées de la durée)
-      const GABARITS = {
-        batiment: [['Installation', 0.06], ['Terrassement', 0.2], ['Gros œuvre', 0.5], ['Second œuvre', 0.78], ['Finitions', 0.94], ['Livraison', 1]],
-        voirie: [['Installation·déviation', 0.08], ['Rabotage/démolition', 0.2], ['Terrassement', 0.42], ['Assises & réseaux', 0.66], ['Enrobés', 0.88], ['Signalisation·réception', 1]],
-        terrassement: [['Installation', 0.08], ['Décapage', 0.25], ['Déblais/remblais', 0.72], ['Compactage·drainage', 0.92], ['Réception', 1]],
-        renovation: [['Diagnostic·curage', 0.16], ['Structure·reprises', 0.44], ['Second œuvre', 0.74], ['Finitions', 0.94], ['Livraison', 1]],
-        paysager: [['Préparation du sol', 0.22], ['Réseaux·arrosage', 0.44], ['Plantations', 0.74], ['Mobilier·allées', 0.92], ['Réception', 1]],
-      };
       const phaseCourante = (z, t) => {
         if (t < z.debut || t > z.fin) return null;
         const frac = (t - z.debut) / Math.max(1, z.fin - z.debut);
@@ -404,6 +607,9 @@ export function initChantier(viewer) {
         forme.style.display = 'flex';
         const auj = new Date();
         page.querySelector('.f-nom').value = z?.nom || '';
+        const selProj = page.querySelector('.f-projet');
+        selProj.innerHTML = `<option value="">— sans projet —</option>`
+          + projets.map((pr) => `<option${z?.projet === pr.nom ? ' selected' : ''}>${pr.nom}</option>`).join('');
         page.querySelector('.f-type').value = z?.type || 'batiment';
         page.querySelector('.f-debut').value = new Date(z?.debut || auj).toISOString().slice(0, 10);
         page.querySelector('.f-fin').value = new Date(z?.fin || auj.getTime() + 30 * jour).toISOString().slice(0, 10);
@@ -464,15 +670,16 @@ export function initChantier(viewer) {
       page.querySelector('.sauver').addEventListener('click', () => {
         const nom = page.querySelector('.f-nom').value.trim() || `Zone ${zones.length + 1}`;
         const type = page.querySelector('.f-type').value;
+        const projet = page.querySelector('.f-projet').value;
         const materiel = [...page.querySelector('.f-mat').selectedOptions].map((o) => o.value).filter((v) => !v.startsWith('—'));
         const personnel = [...page.querySelector('.f-pers').selectedOptions].map((o) => o.value).filter((v) => !v.startsWith('—'));
         const debut = new Date(page.querySelector('.f-debut').value || Date.now()).getTime();
         const fin = new Date(page.querySelector('.f-fin').value || Date.now() + 30 * jour).getTime();
         if (enEdition != null) {
-          Object.assign(zones[enEdition], { nom, type, materiel, personnel, debut, fin: Math.max(fin, debut + jour) });
+          Object.assign(zones[enEdition], { nom, type, projet, materiel, personnel, debut, fin: Math.max(fin, debut + jour) });
           enEdition = null;
         } else {
-          zones.push({ nom, type, materiel, personnel, debut, fin: Math.max(fin, debut + jour), coords: modeCarte.coords, parcelle: modeCarte.type === 'parcelle' });
+          zones.push({ nom, type, projet, materiel, personnel, debut, fin: Math.max(fin, debut + jour), coords: modeCarte.coords, parcelle: modeCarte.type === 'parcelle' });
         }
         ecrireJson(S_ZONES, zones);
         modeCarte = null; window.__wtDessin = false;
@@ -582,7 +789,8 @@ export function initChantier(viewer) {
           </div>
           <textarea class="s-notes" rows="2" placeholder="Notes projet (contraintes, accès, aléas…)">${fiche.notes || ''}</textarea>
           <div class="ligne"><span>📂</span><span>${fichiers} document(s) importé(s) pour ce projet</span>
-            <button class="c-btn mini imp" style="margin-left:auto" type="button">📥 IMPORTER</button></div>
+            <button class="c-btn mini imp" type="button">📥 IMPORTER</button>
+            <button class="c-btn mini devis-bouton" style="margin-left:auto" type="button">🧮 DEVIS (fenêtre sur la vue)</button></div>
           <input type="range" min="0" max="100" value="25" />
           <div class="date">—</div>
           <div class="s-phase" style="font-weight:700;color:#00d4ff"></div>
@@ -624,6 +832,7 @@ export function initChantier(viewer) {
         };
         page.querySelector('.s-projet').addEventListener('change', (e) => { sims.__sel = e.target.value; ecrireJson(S_SIM, sims); rendreSim(); });
         page.querySelector('.imp').addEventListener('click', () => rendrePage('dossier'));
+        page.querySelector('.devis-bouton').addEventListener('click', () => ouvrirDevis(sel));
         page.querySelector('input[type=range]').addEventListener('input', maj);
         page.querySelector('.s-budget').addEventListener('input', maj);
         page.querySelector('.s-duree').addEventListener('input', maj);
@@ -785,8 +994,11 @@ export function initChantier(viewer) {
   }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 
   for (const o of el.querySelectorAll('.ong')) o.addEventListener('click', () => rendrePage(o.dataset.p));
+  // navigation externe : les boutons des autres fenêtres (fiche lieu, devis,
+  // INTEL…) peuvent envoyer l'utilisateur vers l'onglet correspondant
+  window.addEventListener('wt:chantier-page', (e) => { if (e?.detail) rendrePage(e.detail); });
   rendrePage('prospection');
   redessinerCarte();
 
-  return { element: el };
+  return { element: el, allerPage: rendrePage, ouvrirDevis };
 }

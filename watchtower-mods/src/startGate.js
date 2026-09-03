@@ -209,6 +209,14 @@ const GATE_CSS = `
   color: var(--text-secondary, rgba(232,234,237,0.5));
 }
 .gate-back:hover { color: var(--accent, #00d4ff); }
+.gate-missions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+@media (max-width: 560px) { .gate-missions { grid-template-columns: 1fr; } }
+.gate-mission-btn { text-align: left; }
+.gate-mission-btn .g-ic { font-size: 20px; display: block; margin-bottom: 6px; }
+.gate-mission-btn .g-tit { font-size: 11px; letter-spacing: 2px; font-weight: 700; display: block; }
+.gate-mission-btn .g-desc { font-size: 8.5px; line-height: 1.5; color: var(--text-secondary, rgba(232,234,237,0.5)); display: block; margin-top: 4px; letter-spacing: 0.4px; }
+.gate-missions-title { font-size: 14px; letter-spacing: 4px; margin-bottom: 4px; }
+.gate-missions-sub { font-size: 9px; letter-spacing: 2px; color: var(--text-dim, rgba(232,234,237,0.35)); margin-bottom: 18px; }
 `;
 
 /**
@@ -252,13 +260,13 @@ export function openStartGate() {
       CESIUM_ION_TOKEN: String(import.meta.env.CESIUM_ION_TOKEN || ''),
     };
 
-    const finish = (mode, keys) => {
+    const finish = (mode, keys, mission) => {
       gate.classList.add('hidden');
       window.setTimeout(() => {
         gate.remove();
         style.remove();
       }, 600);
-      resolve({ mode, keys });
+      resolve({ mode, keys, mission: mission || 'explorer' });
     };
 
     const header = `
@@ -289,9 +297,55 @@ export function openStartGate() {
       `;
       gate.querySelector('[data-mode="free"]').addEventListener('click', () => {
         try { window.localStorage.removeItem('watchtower.autopaid'); } catch { /* ok */ }
-        finish('free', {});
+        choisirMission('free', {});
       });
       gate.querySelector('[data-mode="paid"]').addEventListener('click', renderKeyEntry);
+    };
+
+    /** Screen 3 — POSTE DE COMMANDEMENT : quelle vue lancer en premier ? */
+    const choisirMission = (mode, keys) => {
+      let derniereVue = null;
+      try { derniereVue = JSON.parse(window.localStorage.getItem('watchtower.derniereVue.v1') || 'null'); } catch { /* pas de vue sauvegardée */ }
+      gate.innerHTML = `
+        <div class="gate-panel">
+          ${header}
+          <h2 class="gate-missions-title">POSTE DE COMMANDEMENT</h2>
+          <p class="gate-missions-sub">QUE VEUX-TU VOIR ?</p>
+          <div class="gate-missions">
+            <button type="button" class="gate-mode-btn gate-mission-btn" data-mission="explorer">
+              <span class="g-ic">🌍</span><span class="g-tit">EXPLORER MANUELLEMENT</span>
+              <span class="g-desc">Vue orbitale de la Terre, navigation libre, toutes les fenêtres à ta demande.</span>
+            </button>
+            <button type="button" class="gate-mode-btn gate-mission-btn" data-mission="individu">
+              <span class="g-ic">👤</span><span class="g-tit">RENSEIGNEMENT INDIVIDU</span>
+              <span class="g-desc">Ta fiche d'identité + le jumeau numérique (INTEL) : tes métriques, ton profil.</span>
+            </button>
+            <button type="button" class="gate-mode-btn gate-mission-btn" data-mission="lieux">
+              <span class="g-ic">🧭</span><span class="g-tit">LIEUX</span>
+              <span class="g-desc">Recherche de lieux (adresse, ville, POI) + tes lieux enregistrés.</span>
+            </button>
+            <button type="button" class="gate-mode-btn gate-mission-btn" data-mission="historique">
+              <span class="g-ic">🏛</span><span class="g-tit">ÉVÉNEMENTS HISTORIQUES</span>
+              <span class="g-desc">Frise des événements de ta commune — presse (GDELT) + résumé Wikipédia.</span>
+            </button>
+            <button type="button" class="gate-mode-btn gate-mission-btn" data-mission="favoris">
+              <span class="g-ic">⭐</span><span class="g-tit">FAVORIS</span>
+              <span class="g-desc">Tes vues caméra enregistrées + domicile : retour d'un clic.</span>
+            </button>
+            ${derniereVue ? `<button type="button" class="gate-mode-btn gate-mission-btn" data-mission="continuer">
+              <span class="g-ic">⏩</span><span class="g-tit">MA DERNIÈRE VUE</span>
+              <span class="g-desc">Reprendre exactement là où tu t'étais arrêté.</span>
+            </button>` : ''}
+          </div>
+          <div style="text-align:center">
+            <button type="button" class="gate-back" data-mission-back>← CHANGER LE MODE</button>
+          </div>
+        </div>
+      `;
+      for (const btn of gate.querySelectorAll('[data-mission]')) {
+        btn.addEventListener('click', () => finish(mode, keys, btn.dataset.mission));
+      }
+      gate.querySelector('[data-mission-back]').addEventListener('click', renderModeChoice);
     };
 
     /** Screen 2 — key entry (paid mode). */
@@ -402,7 +456,7 @@ export function openStartGate() {
           return;
         }
         writeStoredKeys(keys);
-        finish('paid', keys);
+        choisirMission('paid', keys);
       });
 
       gate.querySelector('[data-gate-back]').addEventListener('click', renderModeChoice);
