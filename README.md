@@ -2,6 +2,11 @@
 
 Outils de visualisation cognitive — cognitive tool visualization.
 
+> **Documentation & gouvernance :** voir [`docs/`](docs/) — vision
+> (`docs/constitution/`), état des lieux des dépôts (`docs/etat-des-lieux/`),
+> audits (`docs/audits/`), architecture cible (`docs/architecture/`), agents
+> (`docs/agents/`) et registre de décisions (`docs/constitution/09-decision-log.md`).
+
 ## Learning Engine — PoC v0.1
 
 Le premier Proof of Concept teste une hypothèse pédagogique : faire comprendre un système complexe par résolution progressive de problèmes, avec feedback explicatif et construction dynamique d'un graphe conceptuel.
